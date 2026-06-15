@@ -45,7 +45,7 @@
         .status-panel {
             background-color: #1e293b;
             border-radius: 16px;
-            padding: 30px;
+            padding: 40px;
             flex-grow: 1;
             margin-bottom: 15px;
             border: 1px solid #334155;
@@ -56,12 +56,12 @@
         
         .scroll-inner-container {
             position: absolute;
-            width: calc(100% - 60px);
-            top: 30px;
+            width: calc(100% - 80px);
+            top: 40px;
         }
         
         #info-content {
-            font-size: 22pt;
+            font-size: 24pt; /* 読みやすさ重視で少しだけ文字を大きくしました */
             line-height: 1.8;
             white-space: pre-wrap;
             letter-spacing: 0.5px;
@@ -129,9 +129,7 @@
                 });
         }
 
-        // ゴミ文字を徹底的に掃除してからデコードする安全な関数
         function decodeBase64Utf8(str) {
-            // 文字列の後ろについてしまった余計なスペースや特殊な空白をすべて綺麗にお掃除する（今回のエラーの特効薬）
             let cleanStr = str.replace(/===\s*$/, '==').replace(/==\s*$/, '==').replace(/=\s*$/, '=').trim();
             try {
                 return decodeURIComponent(atob(cleanStr).split('').map(function(c) {
@@ -147,22 +145,34 @@
             const timeArea = document.getElementById("update-time");
             
             if (data.status === "success") {
-                // 安全にお掃除してから日本語に戻す
                 let rawContent = decodeBase64Utf8(data.content);
 
-                // 不要な「TOPに戻る」などの文末残骸をカット
-                rawContent = rawContent.replace(/TOP に戻る.*/g, "").replace(/TOP.*/g, "");
+                // 1. 不要な残骸（TOPに戻るなど）を削除
+                rawContent = rawContent.replace(/TOP.*/g, "").replace(/戻る.*/g, "");
 
-                // 文字の成形
+                // 2. 連続する無駄なスペースや特殊な空白、タブをすべて「半角スペース1個」に圧縮して綺麗にする
+                rawContent = rawContent.replace(/[\u3000\t]+/g, " ").replace(/  +/g, " ").trim();
+
+                // 3. キーワードを見つけて、サイネージ用に綺麗に改行と装飾を入れる
                 let formattedContent = rawContent
-                    .replace(/ 標 題 /g, "\n\n■ 標題：\n")
-                    .replace(/ 発生時刻・概要 /g, "\n\n■ 発生時刻・概要：\n")
-                    .replace(/ 線 区 /g, "\n\n■ 影響線区・列車遅延：\n")
-                    .replace(/ 影響線区・列車遅延 /g, "\n\n■ 影響線区・列車遅延：\n")
-                    .replace(/ \(1\)/g, "\n (1)")
-                    .replace(/ \(2\)/g, "\n (2)")
-                    .replace(/ \(3\)/g, "\n (3)")
-                    .replace(/ 列車\(/g, "\n 列車(");
+                    .replace(/輸送情報の掲示について/g, "【輸送情報の掲示について】")
+                    .replace(/ 標 題 /g, "\n\n■ 標題：\n   ")
+                    .replace(/ 標題 /g, "\n\n■ 標題：\n   ")
+                    .replace(/■ 発生時刻・概要：/g, "\n\n■ 発生時刻・概要：")
+                    .replace(/ \(1\)/g, "\n   (1)")
+                    .replace(/ \(2\)/g, "\n   (2)")
+                    .replace(/ \(3\)/g, "\n   (3)")
+                    .replace(/ \(4\)/g, "\n   (4)")
+                    .replace(/ \(5\)/g, "\n   (5)")
+                    .replace(/ 線 区 /g, "\n\n■ 影響線区・列車遅延：\n   ")
+                    .replace(/ 線区 /g, "\n\n■ 影響線区・列車遅延：\n   ")
+                    .replace(/ 15日発/g, "\n   15日発")
+                    .replace(/ 16日発/g, "\n   16日発")
+                    .replace(/ 17日発/g, "\n   17日発")
+                    .replace(/ 列車\(/g, "\n   列車(");
+
+                // 前後の余計な空行をトリミング
+                formattedContent = formattedContent.trim();
 
                 contentArea.classList.remove("loading");
                 contentArea.innerText = formattedContent;
@@ -177,15 +187,15 @@
 
             const outerBox = document.getElementById("outer-box");
             const innerBox = document.getElementById("inner-container");
-            innerBox.style.top = "30px"; 
+            innerBox.style.top = "40px"; 
             
             setTimeout(() => {
                 const outerHeight = outerBox.clientHeight;
                 const innerHeight = innerBox.clientHeight;
                 
-                if (innerHeight > outerHeight - 60) {
-                    let currentTop = 30;
-                    const maxScroll = -(innerHeight - outerHeight + 40);
+                if (innerHeight > outerHeight - 80) {
+                    let currentTop = 40;
+                    const maxScroll = -(innerHeight - outerHeight + 60);
                     
                     const timer = setInterval(() => {
                         currentTop -= 1;
@@ -194,7 +204,7 @@
                         if (currentTop <= maxScroll) {
                             clearInterval(timer);
                             setTimeout(() => {
-                                innerBox.style.top = "30px";
+                                innerBox.style.top = "40px";
                                 setTimeout(() => startFreightScrollEngine(), 1000);
                             }, 5000); 
                         }
