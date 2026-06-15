@@ -129,15 +129,16 @@
                 });
         }
 
-        // 特殊な日本語文字を安全に復元する関数
+        // ゴミ文字を徹底的に掃除してからデコードする安全な関数
         function decodeBase64Utf8(str) {
+            // 文字列の後ろについてしまった余計なスペースや特殊な空白をすべて綺麗にお掃除する（今回のエラーの特効薬）
+            let cleanStr = str.replace(/===\s*$/, '==').replace(/==\s*$/, '==').replace(/=\s*$/, '=').trim();
             try {
-                return decodeURIComponent(atob(str).split('').map(function(c) {
+                return decodeURIComponent(atob(cleanStr).split('').map(function(c) {
                     return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
                 }).join(''));
             } catch (e) {
-                // 万が一古いAndroidで上記が動かない場合の予備ルート
-                return decodeURIComponent(escape(atob(str)));
+                return decodeURIComponent(escape(atob(cleanStr)));
             }
         }
 
@@ -146,14 +147,18 @@
             const timeArea = document.getElementById("update-time");
             
             if (data.status === "success") {
-                // 安全に暗号化された文字を元の日本語に戻す
+                // 安全にお掃除してから日本語に戻す
                 let rawContent = decodeBase64Utf8(data.content);
+
+                // 不要な「TOPに戻る」などの文末残骸をカット
+                rawContent = rawContent.replace(/TOP に戻る.*/g, "").replace(/TOP.*/g, "");
 
                 // 文字の成形
                 let formattedContent = rawContent
                     .replace(/ 標 題 /g, "\n\n■ 標題：\n")
                     .replace(/ 発生時刻・概要 /g, "\n\n■ 発生時刻・概要：\n")
                     .replace(/ 線 区 /g, "\n\n■ 影響線区・列車遅延：\n")
+                    .replace(/ 影響線区・列車遅延 /g, "\n\n■ 影響線区・列車遅延：\n")
                     .replace(/ \(1\)/g, "\n (1)")
                     .replace(/ \(2\)/g, "\n (2)")
                     .replace(/ \(3\)/g, "\n (3)")
