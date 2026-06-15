@@ -40,7 +40,6 @@
             margin-right: 20px;
         }
         h1 { font-size: 28pt; letter-spacing: 1px; }
-        .time-area { text-align: right; font-size: 16pt; color: #94a3b8; }
         
         .status-panel {
             background-color: #1e293b;
@@ -122,11 +121,9 @@
                 <div class="logo-badge">JR貨物</div>
                 <h1>輸送状況（社内情報サイネージ）</h1>
             </div>
-            <div class="title-area">
-                <div style="font-size: 16pt; color: #94a3b8; text-align: right;">
-                    <div>情報更新: <span id="update-time">-</span></div>
-                    <div style="font-size: 11pt; margin-top: 4px; color: #475569;">サイネージ自動更新: 10分毎</div>
-                </div>
+            <div style="font-size: 16pt; color: #94a3b8; text-align: right;">
+                <div>情報更新: <span id="update-time">-</span></div>
+                <div style="font-size: 11pt; margin-top: 4px; color: #475569;">サイネージ自動更新: 10分毎</div>
             </div>
         </header>
 
@@ -193,13 +190,11 @@
                     rawContent = rawContent.substring(startIndex);
                 }
 
-                // 【ピンポイント成形フィルター：最新改行・線区ライン分離版】
+                // 【ピンポイント成形フィルター：余白美化版】
                 let formattedContent = rawContent
                     // 1. 「現在の輸送状況 〇時現在」を赤バッジにする
                     .replace(/現在の輸送状況\s*([0-9|０-９]+時現在)\s*/g, "<span class='highlight-status'>現在の輸送状況 $1</span><br>")
                     .replace(/誠にありがとうございます。\s*/g, "誠にありがとうございます。<br>")
-                    
-                    // ★ご指定の修正：支障が生じております。の後ろで綺麗に改行を挟む
                     .replace(/支障が生じております。\s*/g, "支障が生じております。<br> ")
                     
                     // 2. 「標題」「発生時刻・概要」を見出しライン化
@@ -213,26 +208,26 @@
                     .replace(/\s*\(4\)/g, "</span><span class='indent-text' style='margin-bottom:5px;'>(4) ")
                     .replace(/\s*\(5\)/g, "</span><span class='indent-text' style='margin-bottom:5px;'>(5) ")
                     
-                    // ★ご指定の修正：(遅れ)の後ろにくっついている「線 区」や「影響線区」のゴミをまとめて、
-                    // きれいな独立した青い一本の「■ 線区」ラインに生まれ変わらせる
+                    // 4. 「■ 線区」の青い見出しラインを生成
                     .replace(/\(遅れ\)\s*線\s*区\s*/g, "(遅れ)</span><span class='section-header'>■ 線区</span><span class='indent-text'>")
                     .replace(/\(遅れ\)\s*影響線区・列車遅延\s*/g, "(遅れ)</span><span class='section-header'>■ 線区</span><span class='indent-text'>")
-                    
-                    // 万が一の保険用置換ルール
                     .replace(/影響線区・列車遅延/g, "")
                     .replace(/線区.*?列車遅延/g, "")
                     
-                    // 4. 各列車の遅延情報を1行ずつに分離してインデント
+                    // 5. 各列車の遅延情報を1行ずつに分離
                     .replace(/\s*([0-3][0-9]日発)/g, "</span><span class='indent-text'>$1")
                     .replace(/\s*(列車\ flocks\ awoke\行业\()/g, "</span><span class='indent-text'>$1")
-                    .replace(/\s*(列車\()/g, "</span><span class='indent-text'>$1");
+                    .replace(/\s*(列車\()/g, "</span><span class='indent-text'>$1")
+
+                    // ★【今回の追加修正】駅名（吹田タ や 終 着）の前後を全角スペース2個分（  ）で綺麗に整列させる
+                    .replace(/\s+(吹田タ)\s+/g, "  $1  ")
+                    .replace(/\s+(終\s*着)\s+/g, "  終 着  ");
 
                 // 最後に閉じタグを補完
                 formattedContent += "</span>";
 
                 // 最後の微調整お掃除
                 formattedContent = formattedContent.replace(/<span class='indent-text'><\/span>/g, "");
-                formattedContent = formattedContent.replace(/  +/g, " ").trim();
 
                 contentArea.classList.remove("loading");
                 contentArea.innerHTML = formattedContent;
