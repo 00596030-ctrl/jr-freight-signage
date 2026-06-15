@@ -50,7 +50,7 @@
             margin-bottom: 15px;
             border: 1px solid #334155;
             box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
-            overflow: hidden; /* AndroidのWebView互換性のためにhiddenに固定 */
+            overflow: hidden;
             position: relative;
         }
         
@@ -113,7 +113,6 @@
         let scrollIntervalTimer = null;
 
         function fetchJRStatusOnly() {
-            // 前回のJARTICと同じように、足元にあるdata.jsonを読み込みに行く（キャッシュ対策の時間を添えて）
             const jsonUrl = `./data.json?t=${new Date().getTime()}`;
 
             fetch(jsonUrl)
@@ -130,13 +129,28 @@
                 });
         }
 
+        // 特殊な日本語文字を安全に復元する関数
+        function decodeBase64Utf8(str) {
+            try {
+                return decodeURIComponent(atob(str).split('').map(function(c) {
+                    return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+                }).join(''));
+            } catch (e) {
+                // 万が一古いAndroidで上記が動かない場合の予備ルート
+                return decodeURIComponent(escape(atob(str)));
+            }
+        }
+
         function updateFreightBoard(data) {
             const contentArea = document.getElementById("info-content");
             const timeArea = document.getElementById("update-time");
             
             if (data.status === "success") {
-                // 文字の整形
-                let formattedContent = data.content
+                // 安全に暗号化された文字を元の日本語に戻す
+                let rawContent = decodeBase64Utf8(data.content);
+
+                // 文字の成形
+                let formattedContent = rawContent
                     .replace(/ 標 題 /g, "\n\n■ 標題：\n")
                     .replace(/ 発生時刻・概要 /g, "\n\n■ 発生時刻・概要：\n")
                     .replace(/ 線 区 /g, "\n\n■ 影響線区・列車遅延：\n")
@@ -149,7 +163,6 @@
                 contentArea.innerText = formattedContent;
                 timeArea.innerText = data.last_update;
 
-                // スクロールエンジンの再起動
                 startFreightScrollEngine();
             }
         }
@@ -161,39 +174,33 @@
             const innerBox = document.getElementById("inner-container");
             innerBox.style.top = "30px"; 
             
-            // 1. 最初の5秒停止
             setTimeout(() => {
                 const outerHeight = outerBox.clientHeight;
                 const innerHeight = innerBox.clientHeight;
                 
-                // 文字がハミ出ている場合のみスクロール開始
                 if (innerHeight > outerHeight - 60) {
                     let currentTop = 30;
                     const maxScroll = -(innerHeight - outerHeight + 40);
                     
-                    // 2. 古いAndroid（仕様）でも100%安定して動くクラシックなミリ秒タイマーでのスクロール
                     const timer = setInterval(() => {
                         currentTop -= 1;
                         innerBox.style.top = currentTop + "px";
                         
                         if (currentTop <= maxScroll) {
                             clearInterval(timer);
-                            // 3. 一番下まで来たら5秒停止したあと、上に戻ってループ
                             setTimeout(() => {
                                 innerBox.style.top = "30px";
                                 setTimeout(() => startFreightScrollEngine(), 1000);
                             }, 5000); 
                         }
-                    }, 40); // 40ミリ秒ごとに1px動く（ゆっくりスクロール）
+                    }, 40);
                     
                     scrollIntervalTimer = timer;
                 }
             }, 5000); 
         }
 
-        // 定期データリロード：10分毎（600000ミリ秒）
         setInterval(fetchJRStatusOnly, 600000); 
-        // 起動時に一発目を実行
         setTimeout(fetchJRStatusOnly, 100);
     </script>
 </body>
