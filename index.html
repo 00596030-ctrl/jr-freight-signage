@@ -67,12 +67,9 @@
             letter-spacing: 0.5px;
         }
         
-        /* ─── ★ここから追加・強化したデザイン ─── */
-        
-        /* 「現在の輸送状況」の超強調スタイル */
         .highlight-status {
             display: inline-block;
-            background-color: #ef4444; /* 目立つ赤色 */
+            background-color: #ef4444;
             color: #ffffff;
             font-weight: bold;
             padding: 5px 20px;
@@ -82,28 +79,24 @@
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
         }
 
-        /* 標題・概要・線区の見出し（色付きライン） */
         .section-header {
             display: block;
-            background-color: #0284c7; /* 鮮やかな青ライン */
+            background-color: #0284c7;
             color: #ffffff;
             font-weight: bold;
             padding: 8px 20px;
-            border-left: 10px solid #38bdf8; /* 左側にさらに明るいアクセント線 */
+            border-left: 10px solid #38bdf8;
             font-size: 24pt;
             margin-top: 35px;
             margin-bottom: 15px;
             border-radius: 0 6px 6px 0;
         }
         
-        /* リスト項目（(1)や各列車）を少し引っ込めて読みやすく */
         .indent-text {
             display: block;
             padding-left: 25px;
             margin-bottom: 10px;
         }
-        
-        /* ─────────────────────────────────── */
         
         footer {
             display: flex;
@@ -168,7 +161,7 @@
         }
 
         function decodeBase64Utf8(str) {
-            let cleanStr = str.replace(/===\s*$/, '==').replace(/==\s*$/, '==').replace(/=\s*$/, '=').trim();
+            let cleanStr = str.replace(/===\s*$/, '==').replace(/== \s*$/, '==').replace(/=\s*$/, '=').trim();
             try {
                 return decodeURIComponent(atob(cleanStr).split('').map(function(c) {
                     return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
@@ -188,19 +181,20 @@
                 // 不要なフッター残骸の削除
                 rawContent = rawContent.replace(/TOP.*/g, "").replace(/戻る.*/g, "");
 
-                // 全角スペースや隠れた改行を一度すべて半角スペース1個に平坦化
+                // 全角スペースや特殊タブ、隠れた改行を一度すべて半角スペース1個に平坦化
                 rawContent = rawContent.replace(/[\r\n\t\u3000]+/g, " ").replace(/  +/g, " ").trim();
 
-                // 【★デザイン反映・特殊成形フィルター】文字をHTMLのタグに置き換える
+                // 【テキスト成形・フィルター処理】
                 let formattedContent = rawContent
                     .replace(/輸送情報の掲示について/g, "<span style='font-size:26pt; color:#38bdf8; font-weight:bold;'>【輸送情報の掲示について】</span><br>")
                     .replace(/お客様各位\s*/g, "お客様各位<br>")
                     .replace(/輸送情報統括責任者\s*/g, "輸送情報統括責任者<br>")
                     
-                    // 「現在の輸送状況」を目立つ強めの赤バッジにする
-                    .replace(/現在の輸送状況\s*/g, "<br><span class='highlight-status'>現在の輸送状況</span> ")
+                    // ★ご指定：誠にありがとうございます。の後ろで改行を挟み、次の行に送る
+                    .replace(/現在の輸送状況\s*([0-9０-９]+時現在)\s*/g, "<br><span class='highlight-status'>現在の輸送状況 $1</span><br>")
+                    .replace(/誠にありがとうございます。\s*/g, "誠にありがとうございます。<br>")
                     
-                    // 「標題」「発生時刻・概要」「線区」を色付きライン（見出し）にする
+                    // 「標題」「発生時刻・概要」の見出しライン化
                     .replace(/\s*標\s*題\s*/g, "<span class='section-header'>■ 標題</span><span class='indent-text'>")
                     .replace(/\s*発生時刻・概要\s*/g, "</span><span class='section-header'>■ 発生時刻・概要</span>")
                     
@@ -211,19 +205,23 @@
                     .replace(/\s*\(4\)/g, "</span><span class='indent-text' style='margin-bottom:5px;'>(4) ")
                     .replace(/\s*\(5\)/g, "</span><span class='indent-text' style='margin-bottom:5px;'>(5) ")
                     
-                    // 「線区（影響線区・列車遅延）」を色付きラインにする
-                    .replace(/\s*線\s*区\s*/g, "</span><span class='section-header'>■ 影響線区・列車遅延</span>")
-                    .replace(/\s*線区\s*/g, "</span><span class='section-header'>■ 影響線区・列車遅延</span>")
+                    // ★ご指定：「線区」という文字単体はラインにせずスキップし、
+                    // 「影響線区・列車遅延」の塊だけを綺麗な色付きラインにする（余計な空ラインを完全消去）
+                    .replace(/\s*線\s*区\s*/g, "</span>")
+                    .replace(/\s*線区\s*/g, "</span>")
+                    .replace(/影響線区・列車遅延/g, "<span class='section-header'>■ 影響線区・列車遅延</span>")
                     
                     // 各列車の遅延情報を1行ずつに分離してインデント
                     .replace(/\s*([0-3][0-9]日発)/g, "</span><span class='indent-text'>$1")
+                    .replace(/\s*(列車\ flocks\()/g, "</span><span class='indent-text'>$1")
                     .replace(/\s*(列車\()/g, "</span><span class='indent-text'>$1");
 
-                // タグの閉じ漏れ対策として最後に帳尻を合わせる
                 formattedContent += "</span>";
 
+                // 万が一「■ 影響」という中途半端な文字が残ってライン化するのを最終防止
+                formattedContent = formattedContent.replace(/<span class='section-header'>■ 影響<\/span>/g, "");
+
                 contentArea.classList.remove("loading");
-                // デザイン（HTMLタグ）を有効にするため、innerHTMLで流し込む
                 contentArea.innerHTML = formattedContent;
                 timeArea.innerText = data.last_update;
 
