@@ -122,9 +122,11 @@
                 <div class="logo-badge">JR貨物</div>
                 <h1>輸送状況（社内情報サイネージ）</h1>
             </div>
-            <div class="time-area">
-                <div>情報更新: <span id="update-time">-</span></div>
-                <div style="font-size: 11pt; margin-top: 4px; color: #475569;">サイネージ自動更新: 10分毎</div>
+            <div class="title-area">
+                <div style="font-size: 16pt; color: #94a3b8; text-align: right;">
+                    <div>情報更新: <span id="update-time">-</span></div>
+                    <div style="font-size: 11pt; margin-top: 4px; color: #475569;">サイネージ自動更新: 10分毎</div>
+                </div>
             </div>
         </header>
 
@@ -191,13 +193,13 @@
                     rawContent = rawContent.substring(startIndex);
                 }
 
-                // 【安全第一・ピンポイント成形フィルター】
+                // 【ピンポイント成形フィルター】
                 let formattedContent = rawContent
                     // 1. 「現在の輸送状況 〇時現在」を赤バッジにする
                     .replace(/現在の輸送状況\s*([0-9|０-９]+時現在)\s*/g, "<span class='highlight-status'>現在の輸送状況 $1</span><br>")
                     .replace(/誠にありがとうございます。\s*/g, "誠にありがとうございます。<br>")
                     
-                    // 2. 「標題」「発生時刻・概要」を安全に見出しライン化
+                    // 2. 「標題」「発生時刻・概要」を見出しライン化
                     .replace(/\s*標\s*題\s*/g, "<span class='section-header'>■ 標題</span><span class='indent-text'>")
                     .replace(/\s*発生時刻・概要\s*/g, "</span><span class='section-header'>■ 発生時刻・概要</span>")
                     
@@ -208,25 +210,25 @@
                     .replace(/\s*\(4\)/g, "</span><span class='indent-text' style='margin-bottom:5px;'>(4) ")
                     .replace(/\s*\(5\)/g, "</span><span class='indent-text' style='margin-bottom:5px;'>(5) ")
                     
-                    // 4. 重複するゴミ文字の塊（「■ 線区（）」「（影響■」など）だけを狙い撃ちで消去し、
-                    // 本物の「線区」または「影響線区・列車遅延」が来たら綺麗な1本のラインに変える
+                    // ★【ご指定の修正】
+                    // ぐちゃぐちゃになっていた「■ ■ 線区（） （影響■ 線区（） ・列車遅延）」という塊を、
+                    // ピンポイントでまるごと検知し、美しい1本の「■ 線区」ラインにスパッと置き換えます。
+                    .replace(/<\/span>\s*■\s*■\s*線\s*区\s*（\s*）\s*（\s*影響\s*■\s*線\s*区\s*（\s*）\s*・\s*列車遅延\s*）/g, "</span><span class='section-header'>■ 線区</span>")
+                    // 念のための予備のハサミ（少し違う形でゴミが出た場合の対策）
                     .replace(/(?:影響)?\s*■\s*線\s*区\s*（\s*）/g, "")
-                    .replace(/（\s*影響\s*■\s*線\s*区\s*（\s*）\s*・\s*列車遅延\s*）/g, "")
-                    .replace(/\s*線\s*区\s*/g, "</span><span class='section-header'>■ 線区（影響線区・列車遅延）</span>")
-                    .replace(/\s*線区\s*/g, "</span><span class='section-header'>■ 線区（影響線区・列車遅延）</span>")
-                    .replace(/影響線区・列車遅延/g, "") // 重複バグ除け
+                    .replace(/影响線区・列車遅延/g, "")
+                    .replace(/線区.*?列車遅延/g, "")
                     
-                    // 5. 各列車の遅延情報を1行ずつに分離してインデント
+                    // 4. 各列車の遅延情報を1行ずつに分離してインデント
                     .replace(/\s*([0-3][0-9]日発)/g, "</span><span class='indent-text'>$1")
-                    .replace(/\s*(列車\ flocks\()/g, "</span><span class='indent-text'>$1")
+                    .replace(/\s*(列車\ flocks\ awoke\()/g, "</span><span class='indent-text'>$1")
                     .replace(/\s*(列車\()/g, "</span><span class='indent-text'>$1");
 
                 // 最後に閉じタグを補完
                 formattedContent += "</span>";
 
-                // 余計な空タグやお掃除残りを最終クレンジング
+                // 最後の微調整お掃除
                 formattedContent = formattedContent.replace(/<span class='indent-text'><\/span>/g, "");
-                formattedContent = formattedContent.replace(/<span class='section-header'>■ 線区（影響線区・列車遅延）<\/span>\s*<\/span>/g, "</span><span class='section-header'>■ 線区（影響線区・列車遅延）</span>");
                 formattedContent = formattedContent.replace(/  +/g, " ").trim();
 
                 contentArea.classList.remove("loading");
