@@ -6,7 +6,6 @@ on:
 jobs:
   update-data:
     runs-on: ubuntu-latest
-    # 本日（2026/06/16）からのGitHubの新しいルールに対応させる設定を追加
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     steps:
@@ -15,10 +14,20 @@ jobs:
 
     - name: JR貨物の輸送障害テキストを安全に奪取してJSON化
       run: |
+        # 1. JR貨物のHTMLを取得
         HTML_CONTENT=$(curl -s "https://www.jrfreight.co.jp/i_daiya.html")
-        CLEAN_TEXT=$(echo "$HTML_CONTENT" | sed -n '/輸送情報の掲示について/,/TOP/p' | sed 's/<[^>]*>/ /g' | tr -d '\r' | tr '\n' ' ' | sed 's/  */ /g')
+        
+        # 2. 文字を切り出して余計な改行やスペースを徹底排除
+        CLEAN_TEXT=$(echo "$HTML_CONTENT" | sed -n '/輸送情報の掲示について/,/TOP/p' | sed 's/<[^>]*>/ /g' | tr -d '\r\n\t' | sed 's/  */ /g' | sed 's/"/\\"/g')
+        
+        # 3. エラー防止のため、テキストを安全なBase64（英数字）に変換
+        B64_TEXT=$(echo -n "$CLEAN_TEXT" | base64 -w 0)
+        
+        # 4. 日本時間を取得
         UPDATED_TIME=$(TZ=Asia/Tokyo date "+%Y/%m/%d %H:%M:%S")
-        echo "{\"status\":\"success\",\"last_update\":\"$UPDATED_TIME\",\"content\":\"$CLEAN_TEXT\"}" > data.json
+        
+        # 5. JSONファイルを出力
+        echo "{\"status\":\"success\",\"last_update\":\"$UPDATED_TIME\",\"content\":\"$B64_TEXT\"}" > data.json
         echo "最新データの取得に成功しました。"
 
     - name: 変更があったらGitHubの画面を自動で書き換えて保存
@@ -26,6 +35,6 @@ jobs:
         git config --global user.name "GitHub Actions Freight Bot"
         git config --global user.email "actions@github.com"
         git add data.json
-        if git commit -m "JR貨物最新輸送情報自動同期"; then
+        if git commit -m "JR貨物最新輸送情報自動同期（安全版）"; then
           git push
         fi
