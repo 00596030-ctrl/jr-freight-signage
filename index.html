@@ -119,7 +119,7 @@
         <header>
             <div class="title-area">
                 <div class="logo-badge">JR貨物</div>
-                <h1>JR貨物輸送状況</h1>
+                <h1>輸送状況（社内情報サイネージ）</h1>
             </div>
             <div style="font-size: 16pt; color: #94a3b8; text-align: right;">
                 <div>情報更新: <span id="update-time">-</span></div>
@@ -134,7 +134,7 @@
         </div>
 
         <footer>
-            <div>※本画面は社内専用表示です</div>
+            <div>※本画面は社内専用表示です（外部非公開）</div>
             <div>データソース: JR貨物公式HP</div>
         </footer>
     </div>
@@ -190,12 +190,17 @@
                     rawContent = rawContent.substring(startIndex);
                 }
 
-                // 【ピンポイント成形フィルター：余白美化版】
+                // 【ピンポイント成形フィルター：他社挨拶カット版】
                 let formattedContent = rawContent
                     // 1. 「現在の輸送状況 〇時現在」を赤バッジにする
                     .replace(/現在の輸送状況\s*([0-9|０-９]+時現在)\s*/g, "<span class='highlight-status'>現在の輸送状況 $1</span><br>")
-                    .replace(/誠にありがとうございます。\s*/g, "誠にありがとうございます。<br>")
-                    .replace(/支障が生じております。\s*/g, "支障が生じております。<br> ")
+                    
+                    // ★【ここを修正】JR貨物の他社向け挨拶文を、見つかり次第すべて完全に消去（空文字に置換）する
+                    .replace(/いつもＪＲ貨物をご利用いただき、誠にありがとうございます。\s*/g, "")
+                    .replace(/いつもJR貨物をご利用いただき、誠にありがとうございます。\s*/g, "")
+                    .replace(/現在、下記の内容により貨物列車に遅れ・その他運行の支障が生じております。\s*/g, "")
+                    .replace(/ご迷惑をおかけして誠に申し訳ございません。\s*/g, "")
+                    .replace(/ご迷惑をおかけして誠に申し訳ありません。\s*/g, "")
                     
                     // 2. 「標題」「発生時刻・概要」を見出しライン化
                     .replace(/\s*標\s*題\s*/g, "<span class='section-header'>■ 標題</span><span class='indent-text'>")
@@ -219,7 +224,7 @@
                     .replace(/\s*(列車\ flocks\ awoke\行业\()/g, "</span><span class='indent-text'>$1")
                     .replace(/\s*(列車\()/g, "</span><span class='indent-text'>$1")
 
-                    // ★【今回の追加修正】駅名（吹田タ や 終 着）の前後を全角スペース2個分（  ）で綺麗に整列させる
+                    // 駅名（吹田タ や 終 着）の前後を全角スペース2個分で綺麗に整列
                     .replace(/\s+(吹田タ)\s+/g, "  $1  ")
                     .replace(/\s+(終\s*着)\s+/g, "  終 着  ");
 
@@ -228,6 +233,7 @@
 
                 // 最後の微調整お掃除
                 formattedContent = formattedContent.replace(/<span class='indent-text'><\/span>/g, "");
+                formattedContent = formattedContent.replace(/<br>\s*<br>/g, "<br>"); // 余計な連続空行を詰める
 
                 contentArea.classList.remove("loading");
                 contentArea.innerHTML = formattedContent;
