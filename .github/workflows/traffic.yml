@@ -1,29 +1,24 @@
 name: JR貨物リアルタイム自動同期システム
 
 on:
-  workflow_dispatch: # cronサイトからの外の命令だけで動くようにします
+  workflow_dispatch:
 
 jobs:
   update-data:
     runs-on: ubuntu-latest
+    # 本日（2026/06/16）からのGitHubの新しいルールに対応させる設定を追加
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     steps:
     - name: コードを引き出す
       uses: actions/checkout@v4
 
     - name: JR貨物の輸送障害テキストを安全に奪取してJSON化
       run: |
-        # 1. JR貨物のHTMLを取得
         HTML_CONTENT=$(curl -s "https://www.jrfreight.co.jp/i_daiya.html")
-        
-        # 2. 「輸送情報の掲示について」から文字を切り出す（TOPに戻るの手前まで）
         CLEAN_TEXT=$(echo "$HTML_CONTENT" | sed -n '/輸送情報の掲示について/,/TOP/p' | sed 's/<[^>]*>/ /g' | tr -d '\r' | tr '\n' ' ' | sed 's/  */ /g')
-        
-        # 3. 日本時間を取得
         UPDATED_TIME=$(TZ=Asia/Tokyo date "+%Y/%m/%d %H:%M:%S")
-        
-        # 4. JSONファイルを組み立てて出力
         echo "{\"status\":\"success\",\"last_update\":\"$UPDATED_TIME\",\"content\":\"$CLEAN_TEXT\"}" > data.json
-        
         echo "最新データの取得に成功しました。"
 
     - name: 変更があったらGitHubの画面を自動で書き換えて保存
