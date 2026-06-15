@@ -61,7 +61,7 @@
         }
         
         #info-content {
-            font-size: 24pt; /* 読みやすさ重視で少しだけ文字を大きくしました */
+            font-size: 24pt;
             line-height: 1.8;
             white-space: pre-wrap;
             letter-spacing: 0.5px;
@@ -113,9 +113,9 @@
         let scrollIntervalTimer = null;
 
         function fetchJRStatusOnly() {
-            const jsonUrl = `./data.json?t=${new Date().getTime()}`;
+            const jsonUrl = `./data.json?cache_bust=${new Date().getTime()}`;
 
-            fetch(jsonUrl)
+            fetch(jsonUrl, { cache: "no-store" })
                 .then(response => {
                     if (!response.ok) throw new Error("data.jsonが見つかりません。");
                     return response.json();
@@ -147,32 +147,39 @@
             if (data.status === "success") {
                 let rawContent = decodeBase64Utf8(data.content);
 
-                // 1. 不要な残骸（TOPに戻るなど）を削除
+                // 不要なフッター残骸の完全削除
                 rawContent = rawContent.replace(/TOP.*/g, "").replace(/戻る.*/g, "");
 
-                // 2. 連続する無駄なスペースや特殊な空白、タブをすべて「半角スペース1個」に圧縮して綺麗にする
-                rawContent = rawContent.replace(/[\u3000\t]+/g, " ").replace(/  +/g, " ").trim();
+                // 全角スペースや特殊タブを一度半角スペースに統一
+                rawContent = rawContent.replace(/[\u3000\t]+/g, " ");
 
-                // 3. キーワードを見つけて、サイネージ用に綺麗に改行と装飾を入れる
+                // ★【超強力成形フィルター】バラバラのスペースを認識して改行を打ち込む
                 let formattedContent = rawContent
                     .replace(/輸送情報の掲示について/g, "【輸送情報の掲示について】")
-                    .replace(/ 標 題 /g, "\n\n■ 標題：\n   ")
-                    .replace(/ 標題 /g, "\n\n■ 標題：\n   ")
-                    .replace(/■ 発生時刻・概要：/g, "\n\n■ 発生時刻・概要：")
-                    .replace(/ \(1\)/g, "\n   (1)")
-                    .replace(/ \(2\)/g, "\n   (2)")
-                    .replace(/ \(3\)/g, "\n   (3)")
-                    .replace(/ \(4\)/g, "\n   (4)")
-                    .replace(/ \(5\)/g, "\n   (5)")
-                    .replace(/ 線 区 /g, "\n\n■ 影響線区・列車遅延：\n   ")
-                    .replace(/ 線区 /g, "\n\n■ 影響線区・列車遅延：\n   ")
-                    .replace(/ 15日発/g, "\n   15日発")
-                    .replace(/ 16日発/g, "\n   16日発")
-                    .replace(/ 17日発/g, "\n   17日発")
-                    .replace(/ 列車\(/g, "\n   列車(");
+                    
+                    // 標題セクションの分離
+                    .replace(/\s*標\s*題\s*/g, "\n\n■ 標題：\n   ")
+                    
+                    // 発生時刻・概要セクションの分離（前に繋がってしまっていたバグを修正）
+                    .replace(/\s*発生時刻・概要\s*/g, "\n\n■ 発生時刻・概要：\n")
+                    
+                    // (1)〜(5)のリストを綺麗に改行
+                    .replace(/\s*\(1\)/g, "\n   (1) ")
+                    .replace(/\s*\(2\)/g, "\n   (2) ")
+                    .replace(/\s*\(3\)/g, "\n   (3) ")
+                    .replace(/\s*\(4\)/g, "\n   (4) ")
+                    .replace(/\s*\(5\)/g, "\n   (5) ")
+                    
+                    // 影響線区セクションの分離
+                    .replace(/\s*線\s*区\s*/g, "\n\n■ 影響線区・列車遅延：\n")
+                    .replace(/■ 影響線区・列車遅延：\s*/g, "■ 影響線区・列車遅延：\n")
+                    
+                    // 消えていた各列車の遅延情報を「1行ずつ」に強制分離して復活させる
+                    .replace(/\s*([0-3][0-9]日発)/g, "\n   $1")
+                    .replace(/\s*(列車\()/g, "\n   $1");
 
-                // 前後の余計な空行をトリミング
-                formattedContent = formattedContent.trim();
+                // 2個以上連続する無駄なスペースを綺麗に間引く（文字詰め）
+                formattedContent = formattedContent.replace(/  +/g, " ").trim();
 
                 contentArea.classList.remove("loading");
                 contentArea.innerText = formattedContent;
