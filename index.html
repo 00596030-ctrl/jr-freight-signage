@@ -147,38 +147,38 @@
             if (data.status === "success") {
                 let rawContent = decodeBase64Utf8(data.content);
 
-                // 不要なフッター残骸の完全削除
+                // 不要なフッター残骸の削除
                 rawContent = rawContent.replace(/TOP.*/g, "").replace(/戻る.*/g, "");
 
-                // 全角スペースや特殊タブを一度半角スペースに統一
-                rawContent = rawContent.replace(/[\u3000\t]+/g, " ");
+                // 全角スペースや特殊タブ、隠れた改行を一度すべて半角スペース1個に平坦化する
+                rawContent = rawContent.replace(/[\r\n\t\u3000]+/g, " ").replace(/  +/g, " ").trim();
 
-                // ★【超強力成形フィルター】バラバラのスペースを認識して改行を打ち込む
+                // 【最終成形フィルター】確実にキーワードで改行を叩き込む
                 let formattedContent = rawContent
-                    .replace(/輸送情報の掲示について/g, "【輸送情報の掲示について】")
+                    .replace(/輸送情報の掲示について/g, "【輸送情報の掲示について】\n")
                     
-                    // 標題セクションの分離
-                    .replace(/\s*標\s*題\s*/g, "\n\n■ 標題：\n   ")
+                    // 「お客様各位」の後ろにスペースがあってもなくても確実に改行
+                    .replace(/お客様各位\s*/g, "お客様各位\n")
+                    // 「輸送情報統括責任者」の直後に確実に改行
+                    .replace(/輸送情報統括責任者\s*/g, "輸送情報統括責任者\n")
                     
-                    // 発生時刻・概要セクションの分離（前に繋がってしまっていたバグを修正）
-                    .replace(/\s*発生時刻・概要\s*/g, "\n\n■ 発生時刻・概要：\n")
+                    // 各セクションの見出し部分の分離
+                    .replace(/ 標 題 /g, "\n\n■ 標題：\n   ")
+                    .replace(/ 標題 /g, "\n\n■ 標題：\n   ")
+                    .replace(/発生時刻・概要/g, "\n\n■ 発生時刻・概要：\n")
                     
-                    // (1)〜(5)のリストを綺麗に改行
-                    .replace(/\s*\(1\)/g, "\n   (1) ")
-                    .replace(/\s*\(2\)/g, "\n   (2) ")
-                    .replace(/\s*\(3\)/g, "\n   (3) ")
-                    .replace(/\s*\(4\)/g, "\n   (4) ")
-                    .replace(/\s*\(5\)/g, "\n   (5) ")
+                    // リストの改行
+                    .replace(/ \(1\)/g, "\n   (1) ").replace(/ \(2\)/g, "\n   (2) ").replace(/ \(3\)/g, "\n   (3) ").replace(/ \(4\)/g, "\n   (4) ").replace(/ \(5\)/g, "\n   (5) ")
                     
-                    // 影響線区セクションの分離
-                    .replace(/\s*線\s*区\s*/g, "\n\n■ 影響線区・列車遅延：\n")
-                    .replace(/■ 影響線区・列車遅延：\s*/g, "■ 影響線区・列車遅延：\n")
+                    // 線区・列車遅延セクションの分離
+                    .replace(/ 線 区 /g, "\n\n■ 影響線区・列車遅延：\n")
+                    .replace(/ 線区 /g, "\n\n■ 影響線区・列車遅延：\n")
                     
-                    // 消えていた各列車の遅延情報を「1行ずつ」に強制分離して復活させる
-                    .replace(/\s*([0-3][0-9]日発)/g, "\n   $1")
-                    .replace(/\s*(列車\()/g, "\n   $1");
+                    // 各列車の遅延情報を1行ずつに強制スプリット
+                    .replace(/ ([0-3][0-9]日発)/g, "\n   $1")
+                    .replace(/ (列車\()/g, "\n   $1");
 
-                // 2個以上連続する無駄なスペースを綺麗に間引く（文字詰め）
+                // 最後に全体の余計なスペース詰めの微調整
                 formattedContent = formattedContent.replace(/  +/g, " ").trim();
 
                 contentArea.classList.remove("loading");
