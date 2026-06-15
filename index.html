@@ -193,11 +193,14 @@
                     rawContent = rawContent.substring(startIndex);
                 }
 
-                // 【ピンポイント成形フィルター】
+                // 【ピンポイント成形フィルター：最新改行・線区ライン分離版】
                 let formattedContent = rawContent
                     // 1. 「現在の輸送状況 〇時現在」を赤バッジにする
                     .replace(/現在の輸送状況\s*([0-9|０-９]+時現在)\s*/g, "<span class='highlight-status'>現在の輸送状況 $1</span><br>")
                     .replace(/誠にありがとうございます。\s*/g, "誠にありがとうございます。<br>")
+                    
+                    // ★ご指定の修正：支障が生じております。の後ろで綺麗に改行を挟む
+                    .replace(/支障が生じております。\s*/g, "支障が生じております。<br> ")
                     
                     // 2. 「標題」「発生時刻・概要」を見出しライン化
                     .replace(/\s*標\s*題\s*/g, "<span class='section-header'>■ 標題</span><span class='indent-text'>")
@@ -210,18 +213,18 @@
                     .replace(/\s*\(4\)/g, "</span><span class='indent-text' style='margin-bottom:5px;'>(4) ")
                     .replace(/\s*\(5\)/g, "</span><span class='indent-text' style='margin-bottom:5px;'>(5) ")
                     
-                    // ★【ご指定の修正】
-                    // ぐちゃぐちゃになっていた「■ ■ 線区（） （影響■ 線区（） ・列車遅延）」という塊を、
-                    // ピンポイントでまるごと検知し、美しい1本の「■ 線区」ラインにスパッと置き換えます。
-                    .replace(/<\/span>\s*■\s*■\s*線\s*区\s*（\s*）\s*（\s*影響\s*■\s*線\s*区\s*（\s*）\s*・\s*列車遅延\s*）/g, "</span><span class='section-header'>■ 線区</span>")
-                    // 念のための予備のハサミ（少し違う形でゴミが出た場合の対策）
-                    .replace(/(?:影響)?\s*■\s*線\s*区\s*（\s*）/g, "")
-                    .replace(/影响線区・列車遅延/g, "")
+                    // ★ご指定の修正：(遅れ)の後ろにくっついている「線 区」や「影響線区」のゴミをまとめて、
+                    // きれいな独立した青い一本の「■ 線区」ラインに生まれ変わらせる
+                    .replace(/\(遅れ\)\s*線\s*区\s*/g, "(遅れ)</span><span class='section-header'>■ 線区</span><span class='indent-text'>")
+                    .replace(/\(遅れ\)\s*影響線区・列車遅延\s*/g, "(遅れ)</span><span class='section-header'>■ 線区</span><span class='indent-text'>")
+                    
+                    // 万が一の保険用置換ルール
+                    .replace(/影響線区・列車遅延/g, "")
                     .replace(/線区.*?列車遅延/g, "")
                     
                     // 4. 各列車の遅延情報を1行ずつに分離してインデント
                     .replace(/\s*([0-3][0-9]日発)/g, "</span><span class='indent-text'>$1")
-                    .replace(/\s*(列車\ flocks\ awoke\()/g, "</span><span class='indent-text'>$1")
+                    .replace(/\s*(列車\ flocks\ awoke\行业\()/g, "</span><span class='indent-text'>$1")
                     .replace(/\s*(列車\()/g, "</span><span class='indent-text'>$1");
 
                 // 最後に閉じタグを補完
