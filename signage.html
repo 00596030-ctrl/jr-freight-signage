@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>JR貨物 運行情報サイネージ</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: "Helvetica Neue", Arial, "Hiragino Kaku Gothic ProN", "Hiragino Sans", Meiryo, sans-serif;
+            background-color: #0f172a;
+            color: #f8fafc;
+            height: 100vh;
+            overflow: hidden;
+            padding: 40px;
+        }
+        .container {
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 4px solid #38bdf8;
+            padding-bottom: 20px;
+            margin-bottom: 25px;
+        }
+        .title-area { display: flex; align-items: center; }
+        .logo-badge {
+            background-color: #38bdf8;
+            color: #0f172a;
+            padding: 6px 16px;
+            font-weight: bold;
+            font-size: 20pt;
+            border-radius: 6px;
+            margin-right: 20px;
+        }
+        h1 { font-size: 28pt; letter-spacing: 1px; }
+        .time-area { text-align: right; font-size: 16pt; color: #94a3b8; }
+        
+        .status-panel {
+            background-color: #1e293b;
+            border-radius: 16px;
+            padding: 40px;
+            flex-grow: 1;
+            margin-bottom: 25px;
+            border: 1px solid #334155;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
+            overflow-y: auto;
+        }
+        
+        #info-content {
+            font-size: 20pt;
+            line-height: 1.8;
+            white-space: pre-wrap;
+            letter-spacing: 0.5px;
+        }
+        
+        footer {
+            display: flex;
+            justify-content: space-between;
+            font-size: 14pt;
+            color: #64748b;
+            border-top: 1px solid #1e293b;
+            padding-top: 15px;
+        }
+        
+        .loading {
+            color: #38bdf8;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="title-area">
+                <div class="logo-badge">JR貨物</div>
+                <h1>現在の輸送状況（社内情報サイネージ）</h1>
+            </div>
+            <div class="time-area">
+                <div>情報更新: <span id="update-time">-</span></div>
+                <div style="font-size: 12pt; margin-top: 6px; color: #64748b;">サイネージ自動更新: 10分毎</div>
+            </div>
+        </header>
+
+        <div class="status-panel">
+            <div id="info-content" class="loading">運行情報を読み込み中...</div>
+        </div>
+
+        <footer>
+            <div>※本画面は社内専用表示です（外部非公開）</div>
+            <div>データソース: JR貨物公式HP</div>
+        </footer>
+    </div>
+
+    <script>
+        // ★★★ここにあなたのGASのウェブアプリURL（最新のもの）を貼り付けてください★★★
+        const GAS_URL = "https://script.google.com/a/macros/kuronekoyamato.co.jp/s/AKfycbwbTIaek3YgSUv69qhey4iSnuQORVafhVf9veuQRPAE4ayp7ix7373ivR4WETBopRxD/exec"; 
+
+        // データを取得して画面を書き換える関数
+        async function fetchStatus() {
+            const contentArea = document.getElementById("info-content");
+            if (!contentArea) return;
+            
+            try {
+                // ローカルファイルからのブロック制限を回避するため、合言葉を付けて呼び出す
+                const script = document.createElement('script');
+                script.src = GAS_URL + "?callback=renderSignage";
+                document.body.appendChild(script);
+                document.body.removeChild(script);
+            } catch (error) {
+                contentArea.innerText = "エラーが発生しました。";
+            }
+        }
+
+        // GASからデータを受け取って画面を描画する専用の関数
+        window.renderSignage = function(data) {
+            const contentArea = document.getElementById("info-content");
+            const timeArea = document.getElementById("update-time");
+            
+            if (!contentArea || !timeArea) return;
+            
+            if (data.status === "success") {
+                let formattedContent = data.content
+                    .replace(/ 標 題 /g, "\n\n■ 標題：\n")
+                    .replace(/ 発生時刻・概要 /g, "\n\n■ 発生時刻・概要：\n")
+                    .replace(/ 線 区 /g, "\n\n■ 影響線区・列車遅延：\n")
+                    .replace(/ \(1\)/g, "\n (1)")
+                    .replace(/ \(2\)/g, "\n (2)")
+                    .replace(/ \(3\)/g, "\n (3)")
+                    .replace(/ 列車\(/g, "\n 列車(");
+
+                contentArea.classList.remove("loading");
+                contentArea.innerText = formattedContent;
+                timeArea.innerText = data.last_update;
+            }
+        };
+
+        // 画面が開かれた時に一回実行
+        fetchStatus();
+
+        // その後、10分（600,000ミリ秒）ごとに自動更新
+        setInterval(fetchStatus, 600000);
+    </script>
+</body>
+</html>
