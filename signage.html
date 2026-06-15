@@ -11,7 +11,7 @@
             color: #f8fafc;
             height: 100vh;
             overflow: hidden;
-            padding: 40px;
+            padding: 30px; /* 少しだけ上下の余白を詰めて表示領域を広げました */
         }
         .container {
             height: 100%;
@@ -24,8 +24,8 @@
             justify-content: space-between;
             align-items: center;
             border-bottom: 4px solid #38bdf8;
-            padding-bottom: 20px;
-            margin-bottom: 25px;
+            padding-bottom: 15px;
+            margin-bottom: 20px;
         }
         .title-area { display: flex; align-items: center; }
         .logo-badge {
@@ -40,19 +40,32 @@
         h1 { font-size: 28pt; letter-spacing: 1px; }
         .time-area { text-align: right; font-size: 16pt; color: #94a3b8; }
         
+        /* 輸送状況を表示するメインパネル */
         .status-panel {
             background-color: #1e293b;
             border-radius: 16px;
             padding: 40px;
             flex-grow: 1;
-            margin-bottom: 25px;
+            margin-bottom: 20px;
             border: 1px solid #334155;
             box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
-            overflow-y: auto;
+            
+            /* 自動スクロールを滑らかにするための設定 */
+            overflow-y: hidden; /* スクロールバーは邪魔なので非表示に */
+            position: relative;
+        }
+        
+        /* スクロールさせるための中身のコンテナ */
+        .scroller-inner {
+            position: absolute;
+            top: 40px;
+            left: 40px;
+            right: 40px;
+            transition: transform 0.3s ease-out; /* 手動調整用の微小な猶予 */
         }
         
         #info-content {
-            font-size: 20pt;
+            font-size: 22pt; /* サイネージとして見やすいよう少し文字を大きくしました */
             line-height: 1.8;
             white-space: pre-wrap;
             letter-spacing: 0.5px;
@@ -61,10 +74,10 @@
         footer {
             display: flex;
             justify-content: space-between;
-            font-size: 14pt;
-            color: #64748b;
+            font-size: 13pt; /* フッターのサイズを少し小さくして圧迫感を減らしました */
+            color: #475569;
             border-top: 1px solid #1e293b;
-            padding-top: 15px;
+            padding-top: 10px;
         }
         
         .loading {
@@ -82,12 +95,14 @@
             </div>
             <div class="time-area">
                 <div>情報更新: <span id="update-time">-</span></div>
-                <div style="font-size: 12pt; margin-top: 6px; color: #64748b;">サイネージ自動更新: 10分毎</div>
+                <div style="font-size: 11pt; margin-top: 4px; color: #475569;">サイネージ自動更新: 10分毎</div>
             </div>
         </header>
 
-        <div class="status-panel">
-            <div id="info-content" class="loading">運行情報を読み込み中...</div>
+        <div class="status-panel" id="panel">
+            <div class="scroller-inner" id="scroller">
+                <div id="info-content" class="loading">運行情報を読み込み中...</div>
+            </div>
         </div>
 
         <footer>
@@ -100,13 +115,17 @@
         // ★★★ここにあなたのGASのウェブアプリURL（最新のもの）を貼り付けてください★★★
         const GAS_URL = "https://script.google.com/a/macros/kuronekoyamato.co.jp/s/AKfycbwbTIaek3YgSUv69qhey4iSnuQORVafhVf9veuQRPAE4ayp7ix7373ivR4WETBopRxD/exec"; 
 
+        let scrollTimer = null;
+
         // データを取得して画面を書き換える関数
         async function fetchStatus() {
+            // 新しいデータを取る前に、動いているスクロールタイマーを一度リセットする
+            if (scrollTimer) clearTimeout(scrollTimer);
+            
             const contentArea = document.getElementById("info-content");
             if (!contentArea) return;
             
             try {
-                // ローカルファイルからのブロック制限を回避するため、合言葉を付けて呼び出す
                 const script = document.createElement('script');
                 script.src = GAS_URL + "?callback=renderSignage";
                 document.body.appendChild(script);
@@ -136,13 +155,77 @@
                 contentArea.classList.remove("loading");
                 contentArea.innerText = formattedContent;
                 timeArea.innerText = data.last_update;
+
+                // データが画面に反映された後、少し待ってからスクロール判定を開始する
+                setTimeout(startAutoScroll, 1000);
             }
         };
+
+        // 自動スクロールを制御する関数
+        function startAutoScroll() {
+            const panel = document.getElementById("panel");
+            const scroller = document.getElementById("scroller");
+            
+            if (!panel || !scroller) return;
+
+            // 外枠の高さ（表示できる範囲）
+            const panelHeight = panel.clientHeight - 80; // 上下パディング40pxずつを引く
+            // 中身（文字全体）の高さ
+            const scrollerHeight = scroller.offsetHeight;
+
+            // もし文字が枠内に収まっているならスクロールはしない
+            if (scrollerHeight <= panelHeight) {
+                scroller.style.transform = "translateY(0px)";
+                return;
+            }
+
+            // スクロールしなければいけない距離
+            const scrollDistance = scrollerHeight - panelHeight;
+            
+            let currentY = 0;
+            
+            function loop() {
+                // 1. 最初の上端で5秒停止
+                scrollTimer = setTimeout(() => {
+                    
+                    // 2. ゆっくり下にスクロールを開始（1フレームごとに0.5ピクセル進む。数字を大きくすると速くなります）
+                    function scrollDown() {
+                        if (currentY > -scrollDistance) {
+                            currentY -= 0.5; 
+                            scroller.style.transform = `translateY(${currentY}px)`;
+                            scrollTimer = requestAnimationFrame(scrollDown);
+                        } else {
+                            // 3. 一番下まで行ったら、下端で5秒停止
+                            scrollTimer = setTimeout(() => {
+                                // 4. スナップして一瞬で上に（0.5秒かけて）戻る
+                                scroller.style.transition = "transform 0.5s ease-in-out";
+                                currentY = 0;
+                                scroller.style.transform = "translateY(0px)";
+                                
+                                // アニメーションが戻るのを待ってからループを再起動
+                                setTimeout(() => {
+                                    scroller.style.transition = "none"; // スクロール用に戻す
+                                    loop();
+                                }, 600);
+                                
+                            }, 5000); // 下端での停止時間（5秒）
+                        }
+                    }
+                    
+                    scroller.style.transition = "none"; // スクロール中は滑らかに動かすためアニメーションを切る
+                    scrollDown();
+                    
+                }, 5000); // 上端での停止時間（5秒）
+            }
+
+            // ループの開始
+            loop();
+        }
 
         // 画面が開かれた時に一回実行
         fetchStatus();
 
-        // その後、10分（600,000ミリ秒）ごとに自動更新
+        // その後、10分（600,000ミリ秒）ごとに自動データ更新
         setInterval(fetchStatus, 600000);
     </script>
 </body>
