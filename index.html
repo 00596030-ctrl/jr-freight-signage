@@ -146,7 +146,8 @@
             </div>
             <div style="font-size: 16pt; color: #94a3b8; text-align: right;">
                 <div>情報更新: <span id="update-time">-</span></div>
-                <div style="font-size: 11pt; margin-top: 4px; color: #475569;">サイネージ自動更新: 60分毎</div> </div>
+                <div style="font-size: 11pt; margin-top: 4px; color: #475569;">サイネージ自動更新: 60分毎</div>
+            </div>
         </header>
 
         <div class="status-panel" id="outer-box">
@@ -246,6 +247,9 @@
                 let infoTop = mainParts[0]; 
                 let trainSection = mainParts[1] || ""; 
 
+                // ★【文言の自動置換を追加】
+                // 「北海道、関東〜」だけでなく、「各地区における〜」という表現もすべて「北海道地区における〜」に統一します
+                infoTop = infoTop.replace(/各地区における輸送障害/g, "北海道地区における輸送障害");
                 infoTop = infoTop.replace(/北海道[、\s]*関東[、\s]*中部[、\s]*中国地区における輸送障害/g, "北海道地区における輸送障害");
                 infoTop = infoTop.replace(/北海道.*?における輸送障害/g, "北海道地区における輸送障害");
 
@@ -334,7 +338,6 @@
             const innerBox = document.getElementById("inner-container");
             innerBox.style.top = "40px"; 
             
-            // ★【停止時間の変更】 5000 から 3000 (3秒) に変更しました
             setTimeout(() => {
                 const outerHeight = outerBox.clientHeight;
                 const innerHeight = innerBox.clientHeight;
@@ -346,10 +349,8 @@
                         innerBox.style.top = currentTop + "px";
                         if (currentTop <= maxScroll) {
                             clearInterval(timer);
-                            // ★【最下部到達時の停止時間】 ここも3秒(3000)に短縮
                             setTimeout(() => {
                                 innerBox.style.top = "40px";
-                                // ★【一番上に戻ったあとの停止時間】 ここも3秒(3000)に短縮
                                 setTimeout(() => startFreightScrollEngine(), 3000);
                             }, 3000); 
                         }
