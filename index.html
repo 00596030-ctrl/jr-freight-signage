@@ -78,7 +78,7 @@
             padding: 5px 20px;
             border-radius: 4px;
             font-size: 26pt;
-            margin-bottom: 0px; /* ★【行間修正】下の隙間をゼロに */
+            margin-bottom: 0px;
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
         }
 
@@ -95,7 +95,6 @@
             border-radius: 0 6px 6px 0;
         }
         
-        /* 「■ 標題」だけ一番上にピタッとくっつけるためにmargin-topを小さく調整 */
         .section-header.first-section {
             margin-top: 10px;
         }
@@ -106,19 +105,18 @@
             margin-bottom: 10px;
         }
         
-        /* ★【デザイン修正】自動計算の文字サイズを他と同じ24ptにし、最太字化 */
         .calc-time-box {
             display: block;
             padding-left: 50px;
             margin-top: -5px;
             margin-bottom: 15px;
             color: #38bdf8;
-            font-weight: 900; /* 文字を最も太く */
-            font-size: 24pt;  /* 22ptから24ptへ拡大 */
+            font-weight: 900;
+            font-size: 24pt;
         }
         .calc-time-box span {
             color: #fbbf24;
-            font-weight: 900; /* 引き渡し時間も最太字に指定 */
+            font-weight: 900;
             margin-left: 20px;
         }
         
@@ -148,8 +146,7 @@
             </div>
             <div style="font-size: 16pt; color: #94a3b8; text-align: right;">
                 <div>情報更新: <span id="update-time">-</span></div>
-                <div style="font-size: 11pt; margin-top: 4px; color: #475569;">サイネージ自動更新: 60分毎</div>
-            </div>
+                <div style="font-size: 11pt; margin-top: 4px; color: #475569;">サイネージ自動更新: 60分毎</div> </div>
         </header>
 
         <div class="status-panel" id="outer-box">
@@ -314,7 +311,6 @@
                     filteredTrainsHtml = "<span class='indent-text' style='color:#34d399;'>現在、北海道着の列車に大きな遅延情報はありません。</span>";
                 }
 
-                // 一番最初の「■ 標題」にだけ、隙間を詰める専用のCSSクラス(first-section)を付与
                 let finalHtml = cleanTopHeader
                     .replace(/現在の輸送状況\s*([0-9|０-９]+時現在)\s*/g, "<span class='highlight-status'>現在の輸送状況 $1</span><br>")
                     .replace(/\s*標\s*題\s*/g, "<span class='section-header first-section'>■ 標題</span><span class='indent-text'>")
@@ -338,6 +334,7 @@
             const innerBox = document.getElementById("inner-container");
             innerBox.style.top = "40px"; 
             
+            // ★【停止時間の変更】 5000 から 3000 (3秒) に変更しました
             setTimeout(() => {
                 const outerHeight = outerBox.clientHeight;
                 const innerHeight = innerBox.clientHeight;
@@ -349,15 +346,17 @@
                         innerBox.style.top = currentTop + "px";
                         if (currentTop <= maxScroll) {
                             clearInterval(timer);
+                            // ★【最下部到達時の停止時間】 ここも3秒(3000)に短縮
                             setTimeout(() => {
                                 innerBox.style.top = "40px";
-                                setTimeout(() => startFreightScrollEngine(), 1000);
-                            }, 5000); 
+                                // ★【一番上に戻ったあとの停止時間】 ここも3秒(3000)に短縮
+                                setTimeout(() => startFreightScrollEngine(), 3000);
+                            }, 3000); 
                         }
                     }, 40);
                     scrollIntervalTimer = timer;
                 }
-            }, 5000); 
+            }, 3000); 
         }
 
         setInterval(fetchJRStatusOnly, 600000); 
