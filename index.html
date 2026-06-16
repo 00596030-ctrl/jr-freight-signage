@@ -24,27 +24,25 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            border-bottom: 5px solid #38bdf8; /* ラインを少し太くして安定感を付与 */
+            border-bottom: 5px solid #38bdf8;
             padding-bottom: 15px;
             margin-bottom: 20px;
             flex-shrink: 0;
         }
         .title-area { display: flex; align-items: center; }
         
-        /* ★【デザイン修正】JR貨物バッジを圧倒的に大きく目立たせる */
         .logo-badge {
             background-color: #38bdf8;
             color: #0f172a;
-            padding: 10px 24px;   /* 上下左右の余白を広げて巨大化 */
-            font-weight: 900;     /* 文字の太さを最太に */
-            font-size: 32pt;      /* 20ptから32ptへ特大ボリュームアップ */
+            padding: 10px 24px;
+            font-weight: 900;
+            font-size: 32pt;
             border-radius: 8px;
             margin-right: 25px;
-            letter-spacing: 2px;  /* 文字の横幅に風格を持たせる */
-            box-shadow: 0 4px 10px rgba(56, 189, 248, 0.3); /* ほんのり光らせる */
+            letter-spacing: 2px;
+            box-shadow: 0 4px 10px rgba(56, 189, 248, 0.3);
         }
         
-        /* タイトルの文字サイズもバッジに合わせて微微調整 */
         h1 { font-size: 32pt; letter-spacing: 1px; font-weight: bold; }
         
         .status-panel {
@@ -196,11 +194,10 @@
                     rawContent = rawContent.substring(startIndex);
                 }
 
-                // 不要な挨拶文を完全除去
-                rawContent = rawContent
-                    .replace(/いつも[ＪＲ|JR]貨物をご利用いただき、誠にありがとうございます。\s*/g, "")
-                    .replace(/現在、下記の内容により貨物列車に遅れ・その他運行の支障が生じております。\s*/g, "")
-                    .replace(/ご迷惑をおかけして誠に申し訳ございません。\s*/g, "");
+                // ★【確実な消去の仕組み】
+                // 「現在の輸送状況 〇〇時現在」の直後から、最初の見出しである「■ 標題」が始まるまでの間に挟まれている
+                // すべての挨拶文テキスト（いつも〜、現在〜、ご迷惑〜）を、文字パターンに関わらず「丸ごと全消去」します。
+                rawContent = rawContent.replace(/(現在の輸送状況\s*[0-9|０-９]+時現在\s*).*?(\s*標\s*題)/g, "$1 $2");
 
                 // 道内運行情報の判定用キーワード（路線・駅名）
                 const hokkaidoKeywords = [
@@ -253,21 +250,18 @@
                     trainList.forEach(trainStr => {
                         let isToHokkaido = false;
 
-                        // 1. まず列車情報の中に北海道のキーワードがあるかチェック
                         hokkaidoKeywords.forEach(kw => {
                             if (trainStr.includes(kw)) {
                                 isToHokkaido = true;
                             }
                         });
 
-                        // 2. もし「→本州の駅」という形になっていたら本州行き（上り）なので除外
                         honshuDestinations.forEach(honshu => {
                             if (trainStr.includes("→" + honshu)) {
                                 isToHokkaido = false; 
                             }
                         });
 
-                        // 3. 残った「純粋な北海道着（下り）」だけを画面に表示
                         if (isToHokkaido) {
                             let cleanTrain = trainStr.trim();
                             cleanTrain = cleanTrain.replace(/\s+(吹田タ)\s+/g, "  $1  ");
