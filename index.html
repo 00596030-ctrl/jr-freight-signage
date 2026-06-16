@@ -101,7 +101,7 @@
             margin-bottom: 10px;
         }
         
-        /* 自動計算された時刻表示用の美しいデザイン */
+        /* 自動計算された時刻表示用のデザイン */
         .calc-time-box {
             display: block;
             padding-left: 50px;
@@ -112,7 +112,7 @@
             font-size: 22pt;
         }
         .calc-time-box span {
-            color: #fbbf24; /* 引き渡し時間はオレンジ色で目立たせる */
+            color: #fbbf24;
             margin-left: 20px;
         }
         
@@ -161,13 +161,13 @@
     <script>
         let scrollIntervalTimer = null;
 
-        // ★【データベース】ご提示いただいた5列車の定時ダイヤ情報
+        // 定時ダイヤの変数名から「-」を除去して修正完了
         const FREIGHT_TIMETABLE = {
-            "3051": { arrival: "19:00", hand-over: "19:25" },
-            "3053": { arrival: "23:04", hand-over: "23:29" },
-            "3061": { arrival: "18:01", hand-over: "18:30" },
-            "4061": { arrival: "23:48", hand-over: "00:25" },
-            "95":   { arrival: "21:35", hand-over: "22:20" }
+            "3051": { arrival: "19:00", handover: "19:25" },
+            "3053": { arrival: "23:04", handover: "23:29" },
+            "3061": { arrival: "18:01", handover: "18:30" },
+            "4061": { arrival: "23:48", handover: "00:25" },
+            "95":   { arrival: "21:35", handover: "22:20" }
         };
 
         function fetchJRStatusOnly() {
@@ -197,7 +197,6 @@
             }
         }
 
-        // 時刻文字列（"23:04"など）に遅れ分数（分）を足し算して "HH:MM" で返す関数
         function addMinutesToTime(timeStr, delayMinutes) {
             let parts = timeStr.split(":");
             let hours = parseInt(parts[0], 10);
@@ -227,7 +226,6 @@
                     rawContent = rawContent.substring(startIndex);
                 }
 
-                // 挨拶文を徹底消去
                 rawContent = rawContent.replace(/(現在の輸送状況\s*[0-9|０-９]+時現在\s*).*?(\s*標\s*題)/g, "$1 $2");
 
                 const hokkaidoKeywords = [
@@ -246,7 +244,6 @@
                 let infoTop = mainParts[0]; 
                 let trainSection = mainParts[1] || ""; 
 
-                // 前半の間引き
                 infoTop = infoTop.replace(/北海道[、\s]*関東[、\s]*中部[、\s]*中国地区における輸送障害/g, "北海道地区における輸送障害");
                 infoTop = infoTop.replace(/北海道.*?における輸送障害/g, "北海道地区における輸送障害");
 
@@ -267,7 +264,6 @@
                     }
                 }
 
-                // 後半：遅延列車リストの間引き ＆ ★【到着予想時刻の自動計算】
                 let filteredTrainsHtml = "";
                 if (trainSection.trim() !== "") {
                     let trainList = trainSection.split(/(?=[0-3][0-9]日発)/);
@@ -282,18 +278,14 @@
                             cleanTrain = cleanTrain.replace(/\s+(吹田タ)\s+/g, "  $1  ");
                             cleanTrain = cleanTrain.replace(/\s+(終\s*着)\s+/g, "  終 着  ");
                             
-                            // 元のテキスト行を追加
                             filteredTrainsHtml += `<span class='indent-text'>${cleanTrain}</span>`;
 
-                            // ★ここで列車番号を抜き出して遅れ時間を計算する
-                            // 例: "3053" を探す
                             let foundTrainNo = null;
                             Object.keys(FREIGHT_TIMETABLE).forEach(no => {
                                 if (cleanTrain.includes(no)) { foundTrainNo = no; }
                             });
 
                             if (foundTrainNo) {
-                                // 遅れ「分」をテキストから抽出する (例: "+44分" -> 44, "+2時間21分" -> 141)
                                 let delayMin = 0;
                                 let hourMatch = cleanTrain.match(/\+([0-9|０-９]+)時間/);
                                 let minMatch = cleanTrain.match(/(?:時間|\+)([0-9|０-９]+)分/);
@@ -302,11 +294,10 @@
                                 if (minMatch) delayMin += parseInt(minMatch[1], 10);
 
                                 if (delayMin > 0) {
-                                    let定時 = FREIGHT_TIMETABLE[foundTrainNo];
+                                    let 定時 = FREIGHT_TIMETABLE[foundTrainNo];
                                     let arrivalEst = addMinutesToTime(定時.arrival, delayMin);
-                                    let handoverEst = addMinutesToTime(定時.hand-over, delayMin);
+                                    let handoverEst = addMinutesToTime(定時.handover, delayMin); // 修正箇所
                                     
-                                    // 画面に見やすく表示するためのHTMLを差し込む
                                     filteredTrainsHtml += `<span class='calc-time-box'>➔ 札幌タ ${arrivalEst} 着予定 <span>(引き渡し ${handoverEst} 予定)</span></span>`;
                                 }
                             }
@@ -318,7 +309,6 @@
                     filteredTrainsHtml = "<span class='indent-text' style='color:#34d399;'>現在、北海道着の列車に大きな遅延情報はありません。</span>";
                 }
 
-                // 最終ドッキング
                 let finalHtml = cleanTopHeader
                     .replace(/現在の輸送状況\s*([0-9|０-９]+時現在)\s*/g, "<span class='highlight-status'>現在の輸送状況 $1</span><br>")
                     .replace(/\s*標\s*題\s*/g, "<span class='section-header'>■ 標題</span><span class='indent-text'>")
