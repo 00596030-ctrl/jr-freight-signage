@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>JR貨物 運行情報サイネージ（北海道着）</title>
+    <title>JR貨物 運行情報サイネージ（北海道着限定）</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         html, body {
@@ -24,22 +24,28 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            border-bottom: 4px solid #38bdf8;
+            border-bottom: 5px solid #38bdf8; /* ラインを少し太くして安定感を付与 */
             padding-bottom: 15px;
             margin-bottom: 20px;
             flex-shrink: 0;
         }
         .title-area { display: flex; align-items: center; }
+        
+        /* ★【デザイン修正】JR貨物バッジを圧倒的に大きく目立たせる */
         .logo-badge {
             background-color: #38bdf8;
             color: #0f172a;
-            padding: 6px 16px;
-            font-weight: bold;
-            font-size: 20pt;
-            border-radius: 6px;
-            margin-right: 20px;
+            padding: 10px 24px;   /* 上下左右の余白を広げて巨大化 */
+            font-weight: 900;     /* 文字の太さを最太に */
+            font-size: 32pt;      /* 20ptから32ptへ特大ボリュームアップ */
+            border-radius: 8px;
+            margin-right: 25px;
+            letter-spacing: 2px;  /* 文字の横幅に風格を持たせる */
+            box-shadow: 0 4px 10px rgba(56, 189, 248, 0.3); /* ほんのり光らせる */
         }
-        h1 { font-size: 28pt; letter-spacing: 1px; }
+        
+        /* タイトルの文字サイズもバッジに合わせて微微調整 */
+        h1 { font-size: 32pt; letter-spacing: 1px; font-weight: bold; }
         
         .status-panel {
             background-color: #1e293b;
@@ -119,11 +125,11 @@
         <header>
             <div class="title-area">
                 <div class="logo-badge">JR貨物</div>
-                <h1>輸送状況（北海道着 運行管理）</h1>
+                <h1>輸送状況（北海道着）</h1>
             </div>
             <div style="font-size: 16pt; color: #94a3b8; text-align: right;">
                 <div>情報更新: <span id="update-time">-</span></div>
-                <div style="font-size: 11pt; margin-top: 4px; color: #475569;">サイネージ自動更新: 10分毎</div>
+                <div style="font-size: 11pt; margin-top: 4px; color: #475569;">サイネージ自動更新: 30分毎</div>
             </div>
         </header>
 
@@ -203,7 +209,7 @@
                     "追分", "新富士", "釧路", "北旭川", "礼文", "石倉", "石谷", "国縫"
                 ];
 
-                // ★本州完結、または本州着（上り）を弾くための、本州の主要駅・地区キーワード
+                // 本州完結、または本州着（上り）を弾くための本州駅キーワード
                 const honshuDestinations = [
                     "隅田川", "東京タ", "新座タ", "越谷タ", "百済タ", "吹田タ", "梅田タ", "神戸タ", 
                     "名古屋タ", "稲沢", "静岡貨物", "岡山タ", "広島タ", "福岡タ", "北九州タ", "宮城野", 
@@ -254,7 +260,7 @@
                             }
                         });
 
-                        // 2. 【超重要】もし「→本州の駅」という形になっていたら、それは本州行き（上り）なので強制的に除外する
+                        // 2. もし「→本州の駅」という形になっていたら本州行き（上り）なので除外
                         honshuDestinations.forEach(honshu => {
                             if (trainStr.includes("→" + honshu)) {
                                 isToHokkaido = false; 
