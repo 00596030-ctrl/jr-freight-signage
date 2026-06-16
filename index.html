@@ -78,7 +78,7 @@
             padding: 5px 20px;
             border-radius: 4px;
             font-size: 26pt;
-            margin-bottom: 15px;
+            margin-bottom: 0px; /* ★【行間修正】下の隙間をゼロに */
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
         }
 
@@ -95,24 +95,30 @@
             border-radius: 0 6px 6px 0;
         }
         
+        /* 「■ 標題」だけ一番上にピタッとくっつけるためにmargin-topを小さく調整 */
+        .section-header.first-section {
+            margin-top: 10px;
+        }
+        
         .indent-text {
             display: block;
             padding-left: 25px;
             margin-bottom: 10px;
         }
         
-        /* 自動計算された時刻表示用のデザイン */
+        /* ★【デザイン修正】自動計算の文字サイズを他と同じ24ptにし、最太字化 */
         .calc-time-box {
             display: block;
             padding-left: 50px;
             margin-top: -5px;
             margin-bottom: 15px;
             color: #38bdf8;
-            font-weight: bold;
-            font-size: 22pt;
+            font-weight: 900; /* 文字を最も太く */
+            font-size: 24pt;  /* 22ptから24ptへ拡大 */
         }
         .calc-time-box span {
             color: #fbbf24;
+            font-weight: 900; /* 引き渡し時間も最太字に指定 */
             margin-left: 20px;
         }
         
@@ -142,7 +148,7 @@
             </div>
             <div style="font-size: 16pt; color: #94a3b8; text-align: right;">
                 <div>情報更新: <span id="update-time">-</span></div>
-                <div style="font-size: 11pt; margin-top: 4px; color: #475569;">サイネージ自動更新: 60分毎</div>
+                <div style="font-size: 11pt; margin-top: 4px; color: #475569;">サイネージ自動更新: 30分毎</div>
             </div>
         </header>
 
@@ -161,7 +167,6 @@
     <script>
         let scrollIntervalTimer = null;
 
-        // 定時ダイヤの変数名から「-」を除去して修正完了
         const FREIGHT_TIMETABLE = {
             "3051": { arrival: "19:00", handover: "19:25" },
             "3053": { arrival: "23:04", handover: "23:29" },
@@ -296,7 +301,7 @@
                                 if (delayMin > 0) {
                                     let 定時 = FREIGHT_TIMETABLE[foundTrainNo];
                                     let arrivalEst = addMinutesToTime(定時.arrival, delayMin);
-                                    let handoverEst = addMinutesToTime(定時.handover, delayMin); // 修正箇所
+                                    let handoverEst = addMinutesToTime(定時.handover, delayMin);
                                     
                                     filteredTrainsHtml += `<span class='calc-time-box'>➔ 札幌タ ${arrivalEst} 着予定 <span>(引き渡し ${handoverEst} 予定)</span></span>`;
                                 }
@@ -309,9 +314,10 @@
                     filteredTrainsHtml = "<span class='indent-text' style='color:#34d399;'>現在、北海道着の列車に大きな遅延情報はありません。</span>";
                 }
 
+                // 一番最初の「■ 標題」にだけ、隙間を詰める専用のCSSクラス(first-section)を付与
                 let finalHtml = cleanTopHeader
                     .replace(/現在の輸送状況\s*([0-9|０-９]+時現在)\s*/g, "<span class='highlight-status'>現在の輸送状況 $1</span><br>")
-                    .replace(/\s*標\s*題\s*/g, "<span class='section-header'>■ 標題</span><span class='indent-text'>")
+                    .replace(/\s*標\s*題\s*/g, "<span class='section-header first-section'>■ 標題</span><span class='indent-text'>")
                     .replace(/\s*発生時刻・概要\s*/g, "</span><span class='section-header'>■ 発生時刻・概要</span>");
 
                 finalHtml += "</span>" + filteredSummaryHtml;
