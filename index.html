@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>JR貨物 運行情報サイネージ（北海道特化版）</title>
+    <title>JR貨物 運行情報サイネージ（北海道着）</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         html, body {
@@ -119,7 +119,7 @@
         <header>
             <div class="title-area">
                 <div class="logo-badge">JR貨物</div>
-                <h1>輸送状況（北海道着・道内運行管理）</h1>
+                <h1>輸送状況（北海道着 運行管理）</h1>
             </div>
             <div style="font-size: 16pt; color: #94a3b8; text-align: right;">
                 <div>情報更新: <span id="update-time">-</span></div>
@@ -134,7 +134,7 @@
         </div>
 
         <footer>
-            <div>※本画面は社内専用表示です（北海道に関する情報のみ自動抽出）</div>
+            <div>※本画面は社内専用表示です（北海道着の下り列車のみ抽出）</div>
             <div>データソース: JR貨物公式HP</div>
         </footer>
     </div>
@@ -190,17 +190,24 @@
                     rawContent = rawContent.substring(startIndex);
                 }
 
-                // 不要な他社挨拶文を完全除去
+                // 不要な挨拶文を完全除去
                 rawContent = rawContent
                     .replace(/いつも[ＪＲ|JR]貨物をご利用いただき、誠にありがとうございます。\s*/g, "")
                     .replace(/現在、下記の内容により貨物列車に遅れ・その他運行の支障が生じております。\s*/g, "")
                     .replace(/ご迷惑をおかけして誠に申し訳ございません。\s*/g, "");
 
-                // ★【今回のコア機能1】北海道の判断基準キーワード（路線名・地名）を登録
+                // 道内運行情報の判定用キーワード（路線・駅名）
                 const hokkaidoKeywords = [
                     "北海道", "室蘭線", "函館線", "千歳線", "根室線", "石勝線", "宗谷線", "釧網線", 
                     "札幌", "旭川", "帯広", "苫小牧", "室蘭", "函館", "長万部", "五稜郭", "東室蘭", 
                     "追分", "新富士", "釧路", "北旭川", "礼文", "石倉", "石谷", "国縫"
+                ];
+
+                // ★本州完結、または本州着（上り）を弾くための、本州の主要駅・地区キーワード
+                const honshuDestinations = [
+                    "隅田川", "東京タ", "新座タ", "越谷タ", "百済タ", "吹田タ", "梅田タ", "神戸タ", 
+                    "名古屋タ", "稲沢", "静岡貨物", "岡山タ", "広島タ", "福岡タ", "北九州タ", "宮城野", 
+                    "仙台タ", "新潟タ", "富山タ", "金沢タ", "梶ヶ谷", "川崎貨物"
                 ];
 
                 // データを「前半（標題・概要）」と「後半（遅延列車リスト）」に分ける
@@ -209,13 +216,11 @@
                 let trainSection = mainParts[1] || ""; 
 
                 // ─────────── 前半：発生時刻・概要の間引き処理 ───────────
-                // 標題の文言をご指定通り「北海道地区における〜」に強制書き換え
                 infoTop = infoTop.replace(/北海道[、\s]*関東[、\s]*中部[、\s]*中国地区における輸送障害/g, "北海道地区における輸送障害");
                 infoTop = infoTop.replace(/北海道.*?における輸送障害/g, "北海道地区における輸送障害");
 
-                // 発生概要を (1) (2) (3) ごとにバラバラに分解する
                 let summaryList = infoTop.split(/(?=\([1-9]\))/);
-                let cleanTopHeader = summaryList[0]; // 「現在の輸送状況」や「■ 標題」の文字部分
+                let cleanTopHeader = summaryList[0]; 
                 let filteredSummaryHtml = "";
                 let newIndex = 1;
 
@@ -223,12 +228,10 @@
                     let item = summaryList[i];
                     let isHokkaidoSummary = false;
 
-                    // 北海道の路線や地名が含まれているかチェック
                     hokkaidoKeywords.forEach(kw => {
                         if (item.includes(kw)) { isHokkaidoSummary = true; }
                     });
 
-                    // 北海道に関係する概要だけを残し、番号を綺麗な連番（1から順番）に振り直す
                     if (isHokkaidoSummary) {
                         let cleanedItem = item.replace(/^\([1-9]\)/, `(${newIndex}) `).trim();
                         filteredSummaryHtml += `<span class='indent-text' style='margin-bottom:5px;'>${cleanedItem}</span>`;
@@ -236,19 +239,29 @@
                     }
                 }
 
-                // ─────────── 後半：遅延列車リストの間引き処理 ───────────
+                // ─────────── 後半：遅延列車リストの間引き処理（上り徹底排除） ───────────
                 let filteredTrainsHtml = "";
                 if (trainSection.trim() !== "") {
                     let trainList = trainSection.split(/(?=[0-3][0-9]日発)/);
 
                     trainList.forEach(trainStr => {
                         let isToHokkaido = false;
+
+                        // 1. まず列車情報の中に北海道のキーワードがあるかチェック
                         hokkaidoKeywords.forEach(kw => {
-                            if (trainStr.includes("→" + kw) || trainStr.includes(kw + ")") || trainStr.includes(kw)) {
+                            if (trainStr.includes(kw)) {
                                 isToHokkaido = true;
                             }
                         });
 
+                        // 2. 【超重要】もし「→本州の駅」という形になっていたら、それは本州行き（上り）なので強制的に除外する
+                        honshuDestinations.forEach(honshu => {
+                            if (trainStr.includes("→" + honshu)) {
+                                isToHokkaido = false; 
+                            }
+                        });
+
+                        // 3. 残った「純粋な北海道着（下り）」だけを画面に表示
                         if (isToHokkaido) {
                             let cleanTrain = trainStr.trim();
                             cleanTrain = cleanTrain.replace(/\s+(吹田タ)\s+/g, "  $1  ");
@@ -268,11 +281,9 @@
                     .replace(/\s*標\s*題\s*/g, "<span class='section-header'>■ 標題</span><span class='indent-text'>")
                     .replace(/\s*発生時刻・概要\s*/g, "</span><span class='section-header'>■ 発生時刻・概要</span>");
 
-                // 標題のテキストの閉じタグ、および抽出した概要と列車リストを綺麗に合体
                 finalHtml += "</span>" + filteredSummaryHtml;
                 finalHtml += "<span class='section-header'>■ 線区（北海道着 列車遅延）</span>" + filteredTrainsHtml;
 
-                // 最後の余計なスペースを詰める
                 finalHtml = finalHtml.replace(/<span class='indent-text'><\/span>/g, "");
                 finalHtml = finalHtml.replace(/  +/g, " ").trim();
 
