@@ -240,46 +240,51 @@
                 const honshuDestinations = [
                     "隅田川", "東京タ", "新座タ", "越谷タ", "百済タ", "吹田タ", "梅田タ", "神戸タ", 
                     "名古屋タ", "稲沢", "静岡貨物", "岡山タ", "広島タ", "福岡タ", "北九州タ", "宮城野", 
-                    "仙台タ", "新潟タ", "富山タ", "金沢タ", "梶ヶ谷", "川崎貨物"
+                    "仙台タ", "新潟タ", "富山タ", "金沢タ", "梶ヶ谷", "川崎貨物", "相模", "熊谷タ" // ★相模を追加
                 ];
 
                 let mainParts = rawContent.split(/線\s*区|線区|影響線区・列車遅延/);
                 let infoTop = mainParts[0]; 
                 let trainSection = mainParts[1] || ""; 
 
-                // ★【文言の自動置換を追加】
-                // 「北海道、関東〜」だけでなく、「各地区における〜」という表現もすべて「北海道地区における〜」に統一します
-                infoTop = infoTop.replace(/各地区における輸送障害/g, "北海道における輸送障害");
+                infoTop = infoTop.replace(/各地区における輸送障害/g, "北海道地区における輸送障害");
                 infoTop = infoTop.replace(/北海道[、\s]*関東[、\s]*中部[、\s]*中国地区における輸送障害/g, "北海道地区における輸送障害");
                 infoTop = infoTop.replace(/北海道.*?における輸送障害/g, "北海道地区における輸送障害");
 
-                let summaryList = infoTop.split(/(?=\([1-9]\))/);
-                let cleanTopHeader = summaryList[0]; 
-                let filteredSummaryHtml = "";
-                let newIndex = 1;
-
-                for (let i = 1; i < summaryList.length; i++) {
-                    let item = summaryList[i];
-                    let isHokkaidoSummary = false;
-                    hokkaidoKeywords.forEach(kw => { if (item.includes(kw)) { isHokkaidoSummary = true; } });
-
-                    if (isHokkaidoSummary) {
-                        let cleanedItem = item.replace(/^\([1-9]\)/, `(${newIndex}) `).trim();
-                        filteredSummaryHtml += `<span class='indent-text' style='margin-bottom:5px;'>${cleanedItem}</span>`;
-                        newIndex++;
-                    }
-                }
-
+                // ─────────── 1. 後半：遅延列車リストの抽出 ───────────
                 let filteredTrainsHtml = "";
+                let hasHokkaidoDelay = false; 
+
                 if (trainSection.trim() !== "") {
                     let trainList = trainSection.split(/(?=[0-3][0-9]日発)/);
 
                     trainList.forEach(trainStr => {
                         let isToHokkaido = false;
+                        
+                        // 基本判定：北海道のワードが含まれているか
                         hokkaidoKeywords.forEach(kw => { if (trainStr.includes(kw)) { isToHokkaido = true; } });
-                        honshuDestinations.forEach(honshu => { if (trainStr.includes("→" + honshu)) { isToHokkaido = false; } });
+                        
+                        // 強化判定①：従来のブラックリスト（本州の行き先）が含まれていたら除外
+                        honshuDestinations.forEach(honshu => { if (trainStr.includes("➔" + honshu) || trainStr.includes("→" + honshu)) { isToHokkaido = false; } });
+
+                        // 強化判定②：矢印の「右側」を分解し、右側に北海道の主要ワードが無いなら上り列車（本州行き）とみなして確実に弾く
+                        let arrowParts = trainStr.split(/➔|→/);
+                        if (arrowParts.length > 1) {
+                            let destinationText = arrowParts[1].split(")")[0]; // 「札幌タ)」などの右側部分を抽出
+                            let hasHokkaidoTarget = false;
+                            
+                            // 右側のテキストに「札幌」「旭川」「苫小牧」「帯広」「釧路」「函館」「五稜郭」等の主要着駅があるかチェック
+                            const targetArrivals = ["札幌", "旭川", "苫小牧", "帯広", "釧路", "函館", "五稜郭", "終着"];
+                            targetArrivals.forEach(ta => { if (destinationText.includes(ta)) { hasHokkaidoTarget = true; } });
+                            
+                            // 北海道内のワードが右側に一切なければ、それは北海道発・本州行きの「上り」なので除外
+                            if (!hasHokkaidoTarget) {
+                                isToHokkaido = false;
+                            }
+                        }
 
                         if (isToHokkaido) {
+                            hasHokkaidoDelay = true; 
                             let cleanTrain = trainStr.trim();
                             cleanTrain = cleanTrain.replace(/\s+(吹田タ)\s+/g, "  $1  ");
                             cleanTrain = cleanTrain.replace(/\s+(終\s*着)\s+/g, "  終 着  ");
@@ -315,6 +320,30 @@
                     filteredTrainsHtml = "<span class='indent-text' style='color:#34d399;'>現在、北海道着の列車に大きな遅延情報はありません。</span>";
                 }
 
+                // ─────────── 2. 前半：発生時刻・概要の抽出 ───────────
+                let summaryList = infoTop.split(/(?=\([1-9]\))/);
+                let cleanTopHeader = summaryList[0]; 
+                let filteredSummaryHtml = "";
+                let newIndex = 1;
+
+                for (let i = 1; i < summaryList.length; i++) {
+                    let item = summaryList[i];
+                    let shouldShowSummary = false;
+                    
+                    if (hasHokkaidoDelay) {
+                        shouldShowSummary = true; 
+                    } else {
+                        hokkaidoKeywords.forEach(kw => { if (item.includes(kw)) { shouldShowSummary = true; } });
+                    }
+
+                    if (shouldShowSummary) {
+                        let cleanedItem = item.replace(/^\([1-9]\)/, `(${newIndex}) `).trim();
+                        filteredSummaryHtml += `<span class='indent-text' style='margin-bottom:5px;'>${cleanedItem}</span>`;
+                        newIndex++;
+                    }
+                }
+
+                // ─────────── 3. 最終組み立て ───────────
                 let finalHtml = cleanTopHeader
                     .replace(/現在の輸送状況\s*([0-9|０-９]+時現在)\s*/g, "<span class='highlight-status'>現在の輸送状況 $1</span><br>")
                     .replace(/\s*標\s*題\s*/g, "<span class='section-header first-section'>■ 標題</span><span class='indent-text'>")
