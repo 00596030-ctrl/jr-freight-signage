@@ -158,7 +158,8 @@
 
         <footer>
             <div>※本画面は社内専用表示です（北海道着・主要5列車時刻計算付き）</div>
-            <div></div> </footer>
+            <div></div>
+        </footer>
     </div>
 
     <script>
@@ -244,6 +245,12 @@
                     "仙台タ", "新潟タ", "富山タ", "金沢タ", "梶ヶ谷", "川崎貨物", "相模", "熊谷タ"
                 ];
 
+                // ★【西日本ノイズカット用】北海道着ルートには直接関係のない路線のブラックリスト
+                const westJapanLines = [
+                    "山陽線", "東海道線", "鹿児島線", "日豊線", "長崎線", "佐世保線", "筑肥線", 
+                    "北陸線", "中央線", "関西線", "紀勢線", "山陰線", "伯備線", "予讃線", "土讃線"
+                ];
+
                 let mainParts = rawContent.split(/線\s*区|線区|影響線区・列車遅延/);
                 let infoTop = mainParts[0]; 
                 let trainSection = mainParts[1] || ""; 
@@ -279,7 +286,6 @@
                             cleanTrain = cleanTrain.replace(/\s+(吹田タ)\s+/g, "  $1  ");
                             cleanTrain = cleanTrain.replace(/\s+(終\s*着)\s+/g, "  終 着  ");
                             
-                            // ★【新デザイン】「➔」記号と落ち着いた白文字に修正
                             filteredTrainsHtml += `<span class='indent-text'><span style='color:#f43f5e; font-weight:bold; margin-right:8px;'>➔</span>${cleanTrain}</span>`;
 
                             let foundTrainNo = null;
@@ -321,15 +327,20 @@
                     let shouldShowSummary = false;
                     
                     if (hasHokkaidoDelay) {
-                        shouldShowSummary = true; 
+                        // 北海道着の遅れがある場合は基本「全表示」にするが、西日本の路線キーワードが含まれる場合はハネる
+                        shouldShowSummary = true;
+                        westJapanLines.forEach(wLine => {
+                            if (item.includes(wLine)) {
+                                shouldShowSummary = false; // 西日本のニュースはシャットアウト
+                            }
+                        });
                     } else {
+                        // 平和な時は、北海道に直接関係するキーワードがあるものだけ
                         hokkaidoKeywords.forEach(kw => { if (item.includes(kw)) { shouldShowSummary = true; } });
                     }
 
                     if (shouldShowSummary) {
                         let cleanedItem = item.replace(/^\([1-9]\)/, "").trim(); 
-                        
-                        // ★【新デザイン】「⚠」マークをつけ、視覚的に「原因」であることがわかるように
                         filteredSummaryHtml += `<span class='indent-text' style='margin-bottom:5px;'><span style='color:#fbbf24; font-weight:bold; margin-right:8px;'>⚠</span>${cleanedItem}</span>`;
                     }
                 }
