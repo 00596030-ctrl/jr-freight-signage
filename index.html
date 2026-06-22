@@ -105,7 +105,6 @@
             margin-bottom: 10px;
         }
 
-        /* 出発時刻表示用のスタイルを追加 */
         .dept-time-box {
             display: block;
             padding-left: 50px;
@@ -167,7 +166,7 @@
         </div>
 
         <footer>
-            <div>※本画面は社内専用表示です（北海道着・主要5列車時刻計算付き）</div>
+            <div>※本画面は社内専用表示です（北海道着・主要5列車時刻計算特化版）</div>
             <div></div>
         </footer>
     </div>
@@ -176,13 +175,13 @@
         let scrollIntervalTimer = null;
         const WEEK_DAYS = ["日", "月", "火", "水", "木", "金", "土"];
 
-        // ★時刻表デジタルブックのデータに基づき、出発時刻・日数区分を完全統合
+        // 管理対象の主要5列車データベース
         const FREIGHT_TIMETABLE = {
-            "3051": { departure: "0:10",  arrival: "19:00", handover: "19:25", dayPattern: "sameDay" },  // 当日夜間着
-            "3053": { departure: "3:35",  arrival: "23:04", handover: "23:29", dayPattern: "sameDay" },  // 当日深夜着
-            "3061": { departure: "23:25", arrival: "18:01", handover: "18:30", dayPattern: "nextDay" },  // 前日発➔当日夜間着
-            "4061": { departure: "22:10", arrival: "23:48", handover: "00:25", dayPattern: "thirdDay" }, // 3日目未明着（大阪タ発）
-            "95":   { departure: "20:10", arrival: "21:35", handover: "22:20", dayPattern: "nextDay" }   // 前日発➔当日深夜着
+            "3051": { departure: "0:10",  arrival: "19:00", handover: "19:25", dayPattern: "sameDay" },
+            "3053": { departure: "3:35",  arrival: "23:04", handover: "23:29", dayPattern: "sameDay" },
+            "3061": { departure: "23:25", arrival: "18:01", handover: "18:30", dayPattern: "nextDay" },
+            "4061": { departure: "22:10", arrival: "23:48", handover: "00:25", dayPattern: "thirdDay" },
+            "95":   { departure: "20:10", arrival: "21:35", handover: "22:20", dayPattern: "nextDay" }
         };
 
         function fetchJRStatusOnly() {
@@ -212,14 +211,12 @@
             }
         }
 
-        // 日付・曜日計算コアエンジン（運行パターン補正付き）
         function calculateTargetDateTime(baseDateStr, departureDayNum, targetTimeStr, delayMinutes, mode, dayPattern) {
             let parts = baseDateStr.split(" ")[0].split("/");
             let year = parseInt(parts[0], 10);
             let month = parseInt(parts[1], 10) - 1;
             let day = parseInt(parts[2], 10);
 
-            // まずは「出発日」のDateオブジェクトを組み立てる
             let targetDate = new Date(year, month, day);
             if (departureDayNum) {
                 let currentDay = targetDate.getDate();
@@ -232,34 +229,26 @@
                 }
             }
 
-            // 【出発時刻の計算の場合】
             if (mode === "departure") {
                 let tParts = targetTimeStr.split(":");
                 targetDate.setHours(parseInt(tParts[0], 10));
                 targetDate.setMinutes(parseInt(tParts[1], 10));
             } 
-            // 【到着・引渡時刻の計算の場合】
             else if (mode === "arrival" || mode === "handover") {
                 let tParts = targetTimeStr.split(":");
                 targetDate.setHours(parseInt(tParts[0], 10));
                 targetDate.setMinutes(parseInt(tParts[1], 10));
 
-                // デジタルブックの運行日数パターンに応じた日付シフト処理
                 if (dayPattern === "nextDay") {
-                    // 出発日の「翌日」に本来到着するダイヤ
                     targetDate.setDate(targetDate.getDate() + 1);
                 } else if (dayPattern === "thirdDay") {
-                    // 4061レなど「3日目」に到着するダイヤ
-                    // 出発日(1日目) ➔ 走行中(2日目) ➔ 到着(3日目) のため日付を+2する
                     if (mode === "arrival") {
-                        targetDate.setDate(targetDate.getDate() + 2); // 23:48着
+                        targetDate.setDate(targetDate.getDate() + 2);
                     } else if (mode === "handover") {
-                        // 引渡は00:25なので日付をさらに+1（計3日後）進める
                         targetDate.setDate(targetDate.getDate() + 3);
                     }
                 }
 
-                // 遅延分数を加算
                 if (delayMinutes > 0) {
                     targetDate.setMinutes(targetDate.getMinutes() + delayMinutes);
                 }
@@ -295,21 +284,10 @@
 
                 rawContent = rawContent.replace(/(現在の輸送状況\s*[0-9|０-９]+時現在\s*).*?(\s*標\s*題)/g, "$1 $2");
 
-                const hokkaidoKeywords = [
-                    "北海道", "室蘭線", "函館線", "千歳線", "根室線", "石勝線", "宗谷線", "釧網線", 
-                    "札幌", "旭川", "帯広", "苫小牧", "室蘭", "函館", "長万部", "五稜郭", "東室蘭", 
-                    "追分", "新富士", "釧路", "北旭川", "礼文", "石倉", "石谷", "国縫"
-                ];
-
-                const honshuDestinations = [
-                    "隅田川", "東京タ", "新座タ", "越谷タ", "百済タ", "吹田タ", "梅田タ", "神戸タ", 
-                    "名古屋タ", "稲沢", "静岡貨物", "岡山タ", "広島タ", "福岡タ", "北九州タ", "宮城野", 
-                    "仙台タ", "新潟タ", "富山タ", "金沢タ", "梶ヶ谷", "川崎貨物", "相模", "熊谷タ"
-                ];
-
-                const westJapanLines = [
-                    "山陽線", "東海道線", "鹿児島線", "日豊線", "長崎線", "佐世保線", "筑肥線", 
-                    "北陸線", "中央線", "関西線", "紀勢線", "山陰線", "伯備線", "予讃線", "土讃線"
+                // ★主要5列車が絶対に走る鉄路（ルート）のキーワード
+                const targetRouteKeywords = [
+                    "北海道", "室蘭線", "函館線", "千歳線", "東北線", "津軽", "青森", 
+                    "白新", "羽越", "新潟", "信越", "奥羽", "高崎", "大宮", "青函", "上越"
                 ];
 
                 let mainParts = rawContent.split(/線\s*区|線区|影響線区・列車遅延/);
@@ -320,29 +298,29 @@
                 infoTop = infoTop.replace(/北海道[、\s]*関東[、\s]*中部[、\s]*中国地区における輸送障害/g, "北海道地区における輸送障害");
                 infoTop = infoTop.replace(/北海道.*?における輸送障害/g, "北海道地区における輸送障害");
 
-                // ─────────── 1. 後半：遅延列車リストの抽出 ───────────
+                // ─────────── 1. 後半：線区（列車遅延）主要5列車のみを厳選 ───────────
                 let filteredTrainsHtml = "";
-                let hasHokkaidoDelay = false; 
+                let hasTargetTrainDelay = false; // 主要5列車が実際に遅れているかどうかのフラグ
 
                 if (trainSection.trim() !== "") {
                     let trainList = trainSection.split(/(?=[0-3][0-9]日発)/);
 
                     trainList.forEach(trainStr => {
-                        let isToHokkaido = false;
-                        hokkaidoKeywords.forEach(kw => { if (trainStr.includes(kw)) { isToHokkaido = true; } });
-                        honshuDestinations.forEach(honshu => { if (trainStr.includes("➔" + honshu) || trainStr.includes("→" + honshu)) { isToHokkaido = false; } });
+                        let isTargetTrain = false;
+                        let foundTrainNo = null;
 
-                        let arrowParts = trainStr.split(/➔|→/);
-                        if (arrowParts.length > 1) {
-                            let destinationText = arrowParts[1].split(")")[0];
-                            let hasHokkaidoTarget = false;
-                            const targetArrivals = ["札幌", "旭川", "苫小牧", "帯広", "釧路", "函館", "五稜郭", "終着"];
-                            targetArrivals.forEach(ta => { if (destinationText.includes(ta)) { hasHokkaidoTarget = true; } });
-                            if (!hasHokkaidoTarget) { isToHokkaido = false; }
-                        }
+                        // 文字列の中に「3051」「3053」「3061」「4061」「95」のどれかがピタリと含まれているか
+                        Object.keys(FREIGHT_TIMETABLE).forEach(no => {
+                            if (trainStr.includes(no)) {
+                                isTargetTrain = true;
+                                foundTrainNo = no;
+                            }
+                        });
 
-                        if (isToHokkaido) {
-                            hasHokkaidoDelay = true; 
+                        // 5列車のどれかに該当する場合のみ処理を進める
+                        if (isTargetTrain && foundTrainNo) {
+                            hasTargetTrainDelay = true; // フラグON
+                            
                             let cleanTrain = trainStr.trim();
                             cleanTrain = cleanTrain.replace(/\s+(吹田タ)\s+/g, "  $1  ");
                             cleanTrain = cleanTrain.replace(/\s+(終\s*着)\s+/g, "  終 着  ");
@@ -352,43 +330,32 @@
                             let dayMatch = cleanTrain.match(/([0-3]?[0-9])日発/);
                             let departureDayNum = dayMatch ? parseInt(dayMatch[1], 10) : null;
 
-                            let foundTrainNo = null;
-                            Object.keys(FREIGHT_TIMETABLE).forEach(no => {
-                                if (cleanTrain.includes(no)) { foundTrainNo = no; }
-                            });
+                            let delayMin = 0;
+                            let hourMatch = cleanTrain.match(/\+([0-9|０-９]+)時間/);
+                            let minMatch = cleanTrain.match(/(?:時間|\+)([0-9|０-９]+)分/);
+                            
+                            if (hourMatch) delayMin += parseInt(hourMatch[1], 10) * 60;
+                            if (minMatch) delayMin += parseInt(minMatch[1], 10);
 
-                            if (foundTrainNo) {
-                                let delayMin = 0;
-                                let hourMatch = cleanTrain.match(/\+([0-9|０-９]+)時間/);
-                                let minMatch = cleanTrain.match(/(?:時間|\+)([0-9|０-９]+)分/);
+                            if (delayMin > 0) {
+                                let 定時 = FREIGHT_TIMETABLE[foundTrainNo];
                                 
-                                if (hourMatch) delayMin += parseInt(hourMatch[1], 10) * 60;
-                                if (minMatch) delayMin += parseInt(minMatch[1], 10);
-
-                                if (delayMin > 0) {
-                                    let 定時 = FREIGHT_TIMETABLE[foundTrainNo];
-                                    
-                                    // ① 出発日時のフォーマット（遅延は足さない）
-                                    let departureFormatted = calculateTargetDateTime(baseUpdateDateTime, departureDayNum, 定時.departure, 0, "departure", 定時.dayPattern);
-                                    
-                                    // ② 到着・引渡日時のフォーマット（遅延を足し、運行日数パターンで補正）
-                                    let arrivalEstFormatted = calculateTargetDateTime(baseUpdateDateTime, departureDayNum, 定時.arrival, delayMin, "arrival", 定時.dayPattern);
-                                    let handoverEstFormatted = calculateTargetDateTime(baseUpdateDateTime, departureDayNum, 定時.handover, delayMin, "handover", 定時.dayPattern);
-                                    
-                                    // 画面へ出力
-                                    filteredTrainsHtml += `<span class='dept-time-box'>【出発】 ${departureFormatted} 発</span>`;
-                                    filteredTrainsHtml += `<span class='calc-time-box'>➔ 札幌タ ${arrivalEstFormatted} 着予定 <span>(引き渡し ${handoverEstFormatted} 予定)</span></span>`;
-                                }
+                                let departureFormatted = calculateTargetDateTime(baseUpdateDateTime, departureDayNum, 定時.departure, 0, "departure", 定時.dayPattern);
+                                let arrivalEstFormatted = calculateTargetDateTime(baseUpdateDateTime, departureDayNum, 定時.arrival, delayMin, "arrival", 定時.dayPattern);
+                                let handoverEstFormatted = calculateTargetDateTime(baseUpdateDateTime, departureDayNum, 定時.handover, delayMin, "handover", 定時.dayPattern);
+                                
+                                filteredTrainsHtml += `<span class='dept-time-box'>【出発】 ${departureFormatted} 発</span>`;
+                                filteredTrainsHtml += `<span class='calc-time-box'>➔ 札幌タ ${arrivalEstFormatted} 着予定 <span>(引き渡し ${handoverEstFormatted} 予定)</span></span>`;
                             }
                         }
                     });
                 }
 
                 if (filteredTrainsHtml === "") {
-                    filteredTrainsHtml = "<span class='indent-text' style='color:#34d399;'>現在、北海道着の列車に大きな遅延情報はありません。</span>";
+                    filteredTrainsHtml = "<span class='indent-text' style='color:#34d399;'>現在、主要5列車(3051, 3053, 3061, 4061, 95)に遅延情報はありません。</span>";
                 }
 
-                // ─────────── 2. 前半：発生時刻・概要の抽出 ───────────
+                // ─────────── 2. 前半：発生時刻・概要 主要5列車のルートのみ ───────────
                 let summaryList = infoTop.split(/(?=\([1-9]\))/);
                 let cleanTopHeader = summaryList[0]; 
                 let filteredSummaryHtml = "";
@@ -397,11 +364,13 @@
                     let item = summaryList[i];
                     let shouldShowSummary = false;
                     
-                    if (hasHokkaidoDelay) {
-                        shouldShowSummary = true;
-                        westJapanLines.forEach(wLine => { if (item.includes(wLine)) { shouldShowSummary = false; } });
-                    } else {
-                        hokkaidoKeywords.forEach(kw => { if (item.includes(kw)) { shouldShowSummary = true; } });
+                    // 「主要5列車のどれかが遅れている」かつ「5列車が走るルート上の障害である」場合のみ表示
+                    if (hasTargetTrainDelay) {
+                        targetRouteKeywords.forEach(kw => {
+                            if (item.includes(kw)) {
+                                shouldShowSummary = true; 
+                            }
+                        });
                     }
 
                     if (shouldShowSummary) {
@@ -416,7 +385,13 @@
                     .replace(/\s*標\s*題\s*/g, "<span class='section-header first-section'>■ 標題</span><span class='indent-text'>")
                     .replace(/\s*発生時刻・概要\s*/g, "</span><span class='section-header'>■ 発生時刻・概要</span>");
 
-                finalHtml += "</span>" + filteredSummaryHtml;
+                // 概要（原因）のニュースが1つもない場合は、項目ヘッダーごと非表示にして画面を広く使う
+                if (filteredSummaryHtml === "") {
+                    finalHtml = "<span class='highlight-status'>現在の輸送状況 " + baseUpdateDateTime.split(" ")[1] + "現在</span><br>";
+                } else {
+                    finalHtml += "</span>" + filteredSummaryHtml;
+                }
+                
                 finalHtml += "<span class='section-header'>■ 線区（北海道着 列車遅延）</span>" + filteredTrainsHtml;
 
                 finalHtml = finalHtml.replace(/  +/g, " ").trim();
