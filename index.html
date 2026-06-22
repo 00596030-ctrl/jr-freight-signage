@@ -175,7 +175,6 @@
         let scrollIntervalTimer = null;
         const WEEK_DAYS = ["日", "月", "火", "水", "木", "金", "土"];
 
-        // 管理対象の主要5列車データベース
         const FREIGHT_TIMETABLE = {
             "3051": { departure: "0:10",  arrival: "19:00", handover: "19:25", dayPattern: "sameDay" },
             "3053": { departure: "3:35",  arrival: "23:04", handover: "23:29", dayPattern: "sameDay" },
@@ -284,7 +283,6 @@
 
                 rawContent = rawContent.replace(/(現在の輸送状況\s*[0-9|０-９]+時現在\s*).*?(\s*標\s*題)/g, "$1 $2");
 
-                // ★主要5列車が絶対に走る鉄路（ルート）のキーワード
                 const targetRouteKeywords = [
                     "北海道", "室蘭線", "函館線", "千歳線", "東北線", "津軽", "青森", 
                     "白新", "羽越", "新潟", "信越", "奥羽", "高崎", "大宮", "青函", "上越"
@@ -294,13 +292,9 @@
                 let infoTop = mainParts[0]; 
                 let trainSection = mainParts[1] || ""; 
 
-                infoTop = infoTop.replace(/各地区における輸送障害/g, "北海道地区における輸送障害");
-                infoTop = infoTop.replace(/北海道[、\s]*関東[、\s]*中部[、\s]*中国地区における輸送障害/g, "北海道地区における輸送障害");
-                infoTop = infoTop.replace(/北海道.*?における輸送障害/g, "北海道地区における輸送障害");
-
-                // ─────────── 1. 後半：線区（列車遅延）主要5列車のみを厳選 ───────────
+                // ─────────── 1. 後半：線区（列車遅延）完全一致フィルター ───────────
                 let filteredTrainsHtml = "";
-                let hasTargetTrainDelay = false; // 主要5列車が実際に遅れているかどうかのフラグ
+                let hasTargetTrainDelay = false; 
 
                 if (trainSection.trim() !== "") {
                     let trainList = trainSection.split(/(?=[0-3][0-9]日発)/);
@@ -309,17 +303,19 @@
                         let isTargetTrain = false;
                         let foundTrainNo = null;
 
-                        // 文字列の中に「3051」「3053」「3061」「4061」「95」のどれかがピタリと含まれているか
+                        // ★【修正ポイント】数字が前後に別の数字を伴わない、独立した列車番号であるかを厳密にチェック
                         Object.keys(FREIGHT_TIMETABLE).forEach(no => {
-                            if (trainStr.includes(no)) {
+                            // 例：「1095」に「95」が含まれるのを防ぐため、文字の並びの境界線を意識して検索
+                            // 列車番号の直前か直後に不要な数字がないかチェック
+                            let regex = new RegExp("(?<![0-9])" + no + "(?![0-9])");
+                            if (regex.test(trainStr)) {
                                 isTargetTrain = true;
                                 foundTrainNo = no;
                             }
                         });
 
-                        // 5列車のどれかに該当する場合のみ処理を進める
                         if (isTargetTrain && foundTrainNo) {
-                            hasTargetTrainDelay = true; // フラグON
+                            hasTargetTrainDelay = true; 
                             
                             let cleanTrain = trainStr.trim();
                             cleanTrain = cleanTrain.replace(/\s+(吹田タ)\s+/g, "  $1  ");
@@ -355,21 +351,17 @@
                     filteredTrainsHtml = "<span class='indent-text' style='color:#34d399;'>現在、主要5列車(3051, 3053, 3061, 4061, 95)に遅延情報はありません。</span>";
                 }
 
-                // ─────────── 2. 前半：発生時刻・概要 主要5列車のルートのみ ───────────
+                // ─────────── 2. 前半：発生時刻・概要の抽出 ───────────
                 let summaryList = infoTop.split(/(?=\([1-9]\))/);
-                let cleanTopHeader = summaryList[0]; 
                 let filteredSummaryHtml = "";
 
                 for (let i = 1; i < summaryList.length; i++) {
                     let item = summaryList[i];
                     let shouldShowSummary = false;
                     
-                    // 「主要5列車のどれかが遅れている」かつ「5列車が走るルート上の障害である」場合のみ表示
                     if (hasTargetTrainDelay) {
                         targetRouteKeywords.forEach(kw => {
-                            if (item.includes(kw)) {
-                                shouldShowSummary = true; 
-                            }
+                            if (item.includes(kw)) { shouldShowSummary = true; }
                         });
                     }
 
@@ -379,17 +371,13 @@
                     }
                 }
 
-                // ─────────── 3. 最終組み立て ───────────
-                let finalHtml = cleanTopHeader
-                    .replace(/現在の輸送状況\s*([0-9|０-９]+時現在)\s*/g, "<span class='highlight-status'>現在の輸送状況 $1</span><br>")
-                    .replace(/\s*標\s*題\s*/g, "<span class='section-header first-section'>■ 標題</span><span class='indent-text'>")
-                    .replace(/\s*発生時刻・概要\s*/g, "</span><span class='section-header'>■ 発生時刻・概要</span>");
+                // ─────────── 3. 最終組み立て（標題の強制書き換え） ───────────
+                // ★【修正ポイント】JRの「中国、近畿〜」というタイトルを完全に無視し、北海道着の専用タイトルへ固定
+                let finalHtml = "<span class='highlight-status'>現在の輸送状況 " + baseUpdateDateTime.split(" ")[1] + "現在</span><br>";
+                finalHtml += "<span class='section-header first-section'>■ 標題</span><span class='indent-text'>北海道着 主要5列車に関する運行情報</span>";
 
-                // 概要（原因）のニュースが1つもない場合は、項目ヘッダーごと非表示にして画面を広く使う
-                if (filteredSummaryHtml === "") {
-                    finalHtml = "<span class='highlight-status'>現在の輸送状況 " + baseUpdateDateTime.split(" ")[1] + "現在</span><br>";
-                } else {
-                    finalHtml += "</span>" + filteredSummaryHtml;
+                if (filteredSummaryHtml !== "") {
+                    finalHtml += "<span class='section-header'>■ 発生時刻・概要</span>" + filteredSummaryHtml;
                 }
                 
                 finalHtml += "<span class='section-header'>■ 線区（北海道着 列車遅延）</span>" + filteredTrainsHtml;
