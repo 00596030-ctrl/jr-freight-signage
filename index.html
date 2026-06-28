@@ -210,7 +210,8 @@
             }
         }
 
-        function calculateTargetDateTime(baseDateStr, departureDayNum, targetTimeStr, delayMinutes, mode, dayPattern) {
+        // 日付・曜日計算、および非表示判定用のDateオブジェクトを返すように拡張
+        function calculateTargetDateTimeObject(baseDateStr, departureDayNum, targetTimeStr, delayMinutes, mode, dayPattern) {
             let parts = baseDateStr.split(" ")[0].split("/");
             let year = parseInt(parts[0], 10);
             let month = parseInt(parts[1], 10) - 1;
@@ -228,16 +229,11 @@
                 }
             }
 
-            if (mode === "departure") {
-                let tParts = targetTimeStr.split(":");
-                targetDate.setHours(parseInt(tParts[0], 10));
-                targetDate.setMinutes(parseInt(tParts[1], 10));
-            } 
-            else if (mode === "arrival" || mode === "handover") {
-                let tParts = targetTimeStr.split(":");
-                targetDate.setHours(parseInt(tParts[0], 10));
-                targetDate.setMinutes(parseInt(tParts[1], 10));
+            let tParts = targetTimeStr.split(":");
+            targetDate.setHours(parseInt(tParts[0], 10));
+            targetDate.setMinutes(parseInt(tParts[1], 10));
 
+            if (mode === "arrival" || mode === "handover") {
                 if (dayPattern === "nextDay") {
                     targetDate.setDate(targetDate.getDate() + 1);
                 } else if (dayPattern === "thirdDay") {
@@ -253,12 +249,15 @@
                 }
             }
 
+            return targetDate;
+        }
+
+        function formatDateString(targetDate) {
             let m = targetDate.getMonth() + 1;
             let d = targetDate.getDate();
             let w = WEEK_DAYS[targetDate.getDay()];
             let h = String(targetDate.getHours()).padStart(2, '0');
             let min = String(targetDate.getMinutes()).padStart(2, '0');
-
             return `${m}月${d}日(${w}) ${h}:${min}`;
         }
 
@@ -268,6 +267,18 @@
             
             if (data.status === "success") {
                 const baseUpdateDateTime = data.last_update;
+
+                // データ更新時刻を比較用のDateオブジェクトに変換
+                let bParts = baseUpdateDateTime.split(" ");
+                let dParts = bParts[0].split("/");
+                let tParts = bParts[1].split(":");
+                let updateDateObj = new Date(
+                    parseInt(dParts[0], 10),
+                    parseInt(dParts[1], 10) - 1,
+                    parseInt(dParts[2], 10),
+                    parseInt(tParts[0], 10),
+                    parseInt(tParts[1], 10)
+                );
 
                 let rawContent = decodeBase64Utf8(data.content);
                 rawContent = rawContent.replace(/TOP.*/g, "").replace(/戻る.*/g, "");
@@ -292,7 +303,7 @@
                 let infoTop = mainParts[0]; 
                 let trainSection = mainParts[1] || ""; 
 
-                // ─────────── 1. 後半：線区（列車遅延）完全一致フィルター ───────────
+                // ─────────── 1. 後半：線区（列車遅延） ───────────
                 let filteredTrainsHtml = "";
                 let hasTargetTrainDelay = false; 
 
@@ -303,10 +314,7 @@
                         let isTargetTrain = false;
                         let foundTrainNo = null;
 
-                        // ★【修正ポイント】数字が前後に別の数字を伴わない、独立した列車番号であるかを厳密にチェック
                         Object.keys(FREIGHT_TIMETABLE).forEach(no => {
-                            // 例：「1095」に「95」が含まれるのを防ぐため、文字の並びの境界線を意識して検索
-                            // 列車番号の直前か直後に不要な数字がないかチェック
                             let regex = new RegExp("(?<![0-9])" + no + "(?![0-9])");
                             if (regex.test(trainStr)) {
                                 isTargetTrain = true;
@@ -315,14 +323,8 @@
                         });
 
                         if (isTargetTrain && foundTrainNo) {
-                            hasTargetTrainDelay = true; 
-                            
                             let cleanTrain = trainStr.trim();
-                            cleanTrain = cleanTrain.replace(/\s+(吹田タ)\s+/g, "  $1  ");
-                            cleanTrain = cleanTrain.replace(/\s+(終\s*着)\s+/g, "  終 着  ");
                             
-                            filteredTrainsHtml += `<span class='indent-text'><span style='color:#f43f5e; font-weight:bold; margin-right:8px;'>➔</span>${cleanTrain}</span>`;
-
                             let dayMatch = cleanTrain.match(/([0-3]?[0-9])日発/);
                             let departureDayNum = dayMatch ? parseInt(dayMatch[1], 10) : null;
 
@@ -333,16 +335,31 @@
                             if (hourMatch) delayMin += parseInt(hourMatch[1], 10) * 60;
                             if (minMatch) delayMin += parseInt(minMatch[1], 10);
 
-                            if (delayMin > 0) {
-                                let 定時 = FREIGHT_TIMETABLE[foundTrainNo];
-                                
-                                let departureFormatted = calculateTargetDateTime(baseUpdateDateTime, departureDayNum, 定時.departure, 0, "departure", 定時.dayPattern);
-                                let arrivalEstFormatted = calculateTargetDateTime(baseUpdateDateTime, departureDayNum, 定時.arrival, delayMin, "arrival", 定時.dayPattern);
-                                let handoverEstFormatted = calculateTargetDateTime(baseUpdateDateTime, departureDayNum, 定時.handover, delayMin, "handover", 定時.dayPattern);
-                                
-                                filteredTrainsHtml += `<span class='dept-time-box'>【出発】 ${departureFormatted} 発</span>`;
-                                filteredTrainsHtml += `<span class='calc-time-box'>➔ 札幌タ ${arrivalEstFormatted} 着予定 <span>(引き渡し ${handoverEstFormatted} 予定)</span></span>`;
+                            let 定時 = FREIGHT_TIMETABLE[foundTrainNo];
+                            
+                            // 各時刻のDateオブジェクトを生成
+                            let departureDateObj = calculateTargetDateTimeObject(baseUpdateDateTime, departureDayNum, 定時.departure, 0, "departure", 定時.dayPattern);
+                            let arrivalDateObj   = calculateTargetDateTimeObject(baseUpdateDateTime, departureDayNum, 定時.arrival, delayMin, "arrival", 定時.dayPattern);
+                            let handoverDateObj  = calculateTargetDateTimeObject(baseUpdateDateTime, departureDayNum, 定時.handover, delayMin, "handover", 定時.dayPattern);
+
+                            // ★【重要】データ更新日時の時点で、すでに到着予定時刻を過ぎている場合はスキップ（非表示）
+                            if (arrivalDateObj <= updateDateObj) {
+                                return; 
                             }
+
+                            // まだ到着していない便だけがここから下に進む
+                            hasTargetTrainDelay = true; 
+                            
+                            cleanTrain = cleanTrain.replace(/\s+(吹田タ)\s+/g, "  $1  ");
+                            cleanTrain = cleanTrain.replace(/\s+(終\s*着)\s+/g, "  終 着  ");
+                            
+                            let departureFormatted = formatDateString(departureDateObj);
+                            let arrivalEstFormatted = formatDateString(arrivalDateObj);
+                            let handoverEstFormatted = formatDateString(handoverDateObj);
+
+                            filteredTrainsHtml += `<span class='indent-text'><span style='color:#f43f5e; font-weight:bold; margin-right:8px;'>➔</span>${cleanTrain}</span>`;
+                            filteredTrainsHtml += `<span class='dept-time-box'>【出発】 ${departureFormatted} 発</span>`;
+                            filteredTrainsHtml += `<span class='calc-time-box'>➔ 札幌タ ${arrivalEstFormatted} 着予定 <span>(引き渡し ${handoverEstFormatted} 予定)</span></span>`;
                         }
                     });
                 }
@@ -351,7 +368,7 @@
                     filteredTrainsHtml = "<span class='indent-text' style='color:#34d399;'>現在、主要5列車(3051, 3053, 3061, 4061, 95)に遅延情報はありません。</span>";
                 }
 
-                // ─────────── 2. 前半：発生時刻・概要の抽出 ───────────
+                // ─────────── 2. 前半：発生時刻・概要 ───────────
                 let summaryList = infoTop.split(/(?=\([1-9]\))/);
                 let filteredSummaryHtml = "";
 
@@ -371,8 +388,7 @@
                     }
                 }
 
-                // ─────────── 3. 最終組み立て（標題の強制書き換え） ───────────
-                // ★【修正ポイント】JRの「中国、近畿〜」というタイトルを完全に無視し、北海道着の専用タイトルへ固定
+                // ─────────── 3. 最終組み立て ───────────
                 let finalHtml = "<span class='highlight-status'>現在の輸送状況 " + baseUpdateDateTime.split(" ")[1] + "現在</span><br>";
                 finalHtml += "<span class='section-header first-section'>■ 標題</span><span class='indent-text'>北海道着 主要5列車に関する運行情報</span>";
 
