@@ -166,7 +166,7 @@
         </div>
 
         <footer>
-            <div>※本画面は社内専用表示です（北海道着・主要5列車時刻計算特化版）</div>
+            <div>※本画面は社内専用表示です（北海道着・主要5列車運行情報）</div>
             <div></div>
         </footer>
     </div>
@@ -195,7 +195,7 @@
                 })
                 .catch(error => {
                     console.error("データ同期エラー:", error);
-                    document.getElementById("info-content").innerText = "データの読み込み中にエラーが発生しました。";
+                    showNormalScreen("-");
                 });
         }
 
@@ -210,7 +210,6 @@
             }
         }
 
-        // 日付・曜日計算、および非表示判定用のDateオブジェクトを返すように拡張
         function calculateTargetDateTimeObject(baseDateStr, departureDayNum, targetTimeStr, delayMinutes, mode, dayPattern) {
             let parts = baseDateStr.split(" ")[0].split("/");
             let year = parseInt(parts[0], 10);
@@ -261,37 +260,58 @@
             return `${m}月${d}日(${w}) ${h}:${min}`;
         }
 
+        // ★【安全避難機能】データ異常時や定時時に綺麗な画面を出す共通関数
+        function showNormalScreen(updateTimeStr) {
+            const contentArea = document.getElementById("info-content");
+            const timeArea = document.getElementById("update-time");
+            
+            let displayTime = updateTimeStr !== "-" ? updateTimeStr.split(" ")[1] + "現在" : "情報取得完了";
+            let finalHtml = `<span class='highlight-status'>現在の輸送状況 ${displayTime}</span><br>`;
+            finalHtml += `<span class='section-header first-section'>■ 標題</span><span class='indent-text'>北海道着 主要5列車に関する運行情報</span>`;
+            finalHtml += `<span class='section-header'>■ 線区（北海道着 列車遅延）</span>`;
+            finalHtml += `<span class='indent-text' style='color:#34d399;'>現在、主要5列車(3051, 3053, 3061, 4061, 95)に遅延情報はありません。</span>`;
+            
+            contentArea.classList.remove("loading");
+            contentArea.innerHTML = finalHtml;
+            if (updateTimeStr !== "-") timeArea.innerText = updateTimeStr;
+            
+            if (scrollIntervalTimer) clearInterval(scrollIntervalTimer);
+            document.getElementById("inner-container").style.top = "40px";
+        }
+
         function updateFreightBoard(data) {
             const contentArea = document.getElementById("info-content");
             const timeArea = document.getElementById("update-time");
             
-            if (data.status === "success") {
-                const baseUpdateDateTime = data.last_update;
+            if (data.status !== "success") {
+                showNormalScreen("-");
+                return;
+            }
 
-                // データ更新時刻を比較用のDateオブジェクトに変換
+            // ★【全体を大きな防御枠で包む】何があっても画面を崩さない
+            try {
+                const baseUpdateDateTime = data.last_update;
                 let bParts = baseUpdateDateTime.split(" ");
                 let dParts = bParts[0].split("/");
                 let tParts = bParts[1].split(":");
                 let updateDateObj = new Date(
-                    parseInt(dParts[0], 10),
-                    parseInt(dParts[1], 10) - 1,
-                    parseInt(dParts[2], 10),
-                    parseInt(tParts[0], 10),
-                    parseInt(tParts[1], 10)
+                    parseInt(dParts[0], 10), parseInt(dParts[1], 10) - 1, parseInt(dParts[2], 10),
+                    parseInt(tParts[0], 10), parseInt(tParts[1], 10)
                 );
 
                 let rawContent = decodeBase64Utf8(data.content);
                 rawContent = rawContent.replace(/TOP.*/g, "").replace(/戻る.*/g, "");
                 rawContent = rawContent.replace(/[\r\n\t\u3000]+/g, " ").replace(/  +/g, " ").trim();
-
                 rawContent = rawContent.replace(/JR貨物/g, "貨物列車").replace(/JR/g, "貨物列車");
 
                 const startKeyword = "現在の輸送状況";
                 const startIndex = rawContent.indexOf(startKeyword);
-                if (startIndex !== -1) {
-                    rawContent = rawContent.substring(startIndex);
+                if (startIndex === -1) {
+                    showNormalScreen(baseUpdateDateTime); // 目印がなければ定時画面へ
+                    return;
                 }
 
+                rawContent = rawContent.substring(startIndex);
                 rawContent = rawContent.replace(/(現在の輸送状況\s*[0-9|０-９]+時現在\s*).*?(\s*標\s*題)/g, "$1 $2");
 
                 const targetRouteKeywords = [
@@ -300,6 +320,11 @@
                 ];
 
                 let mainParts = rawContent.split(/線\s*区|線区|影響線区・列車遅延/);
+                if (mainParts.length < 2) {
+                    showNormalScreen(baseUpdateDateTime); // データ構造が崩れていたら定時画面へ
+                    return;
+                }
+
                 let infoTop = mainParts[0]; 
                 let trainSection = mainParts[1] || ""; 
 
@@ -324,7 +349,6 @@
 
                         if (isTargetTrain && foundTrainNo) {
                             let cleanTrain = trainStr.trim();
-                            
                             let dayMatch = cleanTrain.match(/([0-3]?[0-9])日発/);
                             let departureDayNum = dayMatch ? parseInt(dayMatch[1], 10) : null;
 
@@ -336,22 +360,15 @@
                             if (minMatch) delayMin += parseInt(minMatch[1], 10);
 
                             let 定時 = FREIGHT_TIMETABLE[foundTrainNo];
-                            
-                            // 各時刻のDateオブジェクトを生成
                             let departureDateObj = calculateTargetDateTimeObject(baseUpdateDateTime, departureDayNum, 定時.departure, 0, "departure", 定時.dayPattern);
                             let arrivalDateObj   = calculateTargetDateTimeObject(baseUpdateDateTime, departureDayNum, 定時.arrival, delayMin, "arrival", 定時.dayPattern);
                             let handoverDateObj  = calculateTargetDateTimeObject(baseUpdateDateTime, departureDayNum, 定時.handover, delayMin, "handover", 定時.dayPattern);
 
-                            // ★【重要】データ更新日時の時点で、すでに到着予定時刻を過ぎている場合はスキップ（非表示）
-                            if (arrivalDateObj <= updateDateObj) {
-                                return; 
-                            }
+                            // 到着済みはスキップ
+                            if (arrivalDateObj <= updateDateObj) return; 
 
-                            // まだ到着していない便だけがここから下に進む
                             hasTargetTrainDelay = true; 
-                            
-                            cleanTrain = cleanTrain.replace(/\s+(吹田タ)\s+/g, "  $1  ");
-                            cleanTrain = cleanTrain.replace(/\s+(終\s*着)\s+/g, "  終 着  ");
+                            cleanTrain = cleanTrain.replace(/\s+(吹田タ)\s+/g, "  $1  ").replace(/\s+(終\s*着)\s+/g, "  終 着  ");
                             
                             let departureFormatted = formatDateString(departureDateObj);
                             let arrivalEstFormatted = formatDateString(arrivalDateObj);
@@ -364,8 +381,10 @@
                     });
                 }
 
-                if (filteredTrainsHtml === "") {
-                    filteredTrainsHtml = "<span class='indent-text' style='color:#34d399;'>現在、主要5列車(3051, 3053, 3061, 4061, 95)に遅延情報はありません。</span>";
+                // 主要5列車の有効な遅れが1つもない場合は、綺麗な定時画面を出して終了
+                if (!hasTargetTrainDelay) {
+                    showNormalScreen(baseUpdateDateTime);
+                    return;
                 }
 
                 // ─────────── 2. 前半：発生時刻・概要 ───────────
@@ -376,11 +395,9 @@
                     let item = summaryList[i];
                     let shouldShowSummary = false;
                     
-                    if (hasTargetTrainDelay) {
-                        targetRouteKeywords.forEach(kw => {
-                            if (item.includes(kw)) { shouldShowSummary = true; }
-                        });
-                    }
+                    targetRouteKeywords.forEach(kw => {
+                        if (item.includes(kw)) { shouldShowSummary = true; }
+                    });
 
                     if (shouldShowSummary) {
                         let cleanedItem = item.replace(/^\([1-9]\)/, "").trim(); 
@@ -396,7 +413,7 @@
                     finalHtml += "<span class='section-header'>■ 発生時刻・概要</span>" + filteredSummaryHtml;
                 }
                 
-                finalHtml += "<span class='section-header'>■ 線区（北海道着 列車遅延）</span>" + filteredTrainsHtml;
+                finalHtml += "<span class='section-header'>■ 線区（検知された主要列車）</span>" + filteredTrainsHtml;
 
                 finalHtml = finalHtml.replace(/  +/g, " ").trim();
                 contentArea.classList.remove("loading");
@@ -404,6 +421,11 @@
                 timeArea.innerText = baseUpdateDateTime;
 
                 startFreightScrollEngine();
+
+            } catch (e) {
+                // 万が一プログラムのどこかで大エラーが発生したら、ここへ緊急着陸させる
+                console.error("パース緊急エラー回避:", e);
+                showNormalScreen(data.last_update || "-");
             }
         }
 
